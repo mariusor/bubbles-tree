@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	err := tea.NewProgram(tree.Model{}).Start()
+	err := tea.NewProgram(new(tree.Model)).Start()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Err: %s", err.Error())
 	}

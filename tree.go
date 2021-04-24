@@ -14,10 +14,10 @@ type cursor struct {
 
 // Model is the Bubble Tea model for this user interface.
 type Model struct{
-	Err  error
-	cur  cursor
-	top  os.FileInfo
-	tree []string
+	Err    error
+	cur    cursor
+	top    os.FileInfo
+	tree   []string
 }
 
 func (m *Model) Prev() error {
@@ -30,16 +30,15 @@ func (m *Model) Next() error {
 	return nil
 }
 
-func (m Model) Init() tea.Cmd {
-	var cmds []tea.Cmd
-	return tea.Batch(cmds...)
+func (m *Model) Init() tea.Cmd {
+	return func() tea.Msg {
+		m.tree = strings.Split(staticTree, "\n")
+		return nil
+	}
 }
 
 // Update is the Tea update function which binds keystrokes to pagination.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.tree == nil {
-		m.tree = strings.Split(staticTree, "\n")
-	}
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var err error
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -255,6 +254,9 @@ Documents/
 func (m Model) render() string {
 	if m.Err != nil {
 		return m.Err.Error()
+	}
+	if m.tree == nil {
+		return "waiting for init message"
 	}
 	return strings.Join(m.tree[m.cur.line:m.cur.h], "\n")
 }
