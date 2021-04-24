@@ -8,8 +8,8 @@ import (
 )
 
 type cursor struct {
-	h, w int
-	line, col int
+	h, w      int
+	top, left int
 }
 
 // Model is the Bubble Tea model for this user interface.
@@ -21,12 +21,12 @@ type Model struct{
 }
 
 func (m *Model) Prev() error {
-	m.cur.line = clamp(m.cur.line-1, 0, len(m.tree))
+	m.cur.top = clamp(m.cur.top-1, 0, len(m.tree)-m.cur.h)
 	return nil
 }
 
 func (m *Model) Next() error {
-	m.cur.line = clamp(m.cur.line+1, 0, len(m.tree))
+	m.cur.top = clamp(m.cur.top+1, 0, len(m.tree)-m.cur.h)
 	return nil
 }
 
@@ -70,7 +70,7 @@ func (m Model) View() string {
 // out of bounds the cursor will be moved to the start or end accordingly.
 // Returns whether or nor the cursor timer should be reset.
 func (m *Model) SetCursor(pos int) {
-	m.cur.line = clamp(pos, 0, len(m.tree))
+	m.cur.top = clamp(pos, 0, len(m.tree))
 }
 
 const staticTree = `
@@ -258,7 +258,8 @@ func (m Model) render() string {
 	if m.tree == nil {
 		return "waiting for init message"
 	}
-	return strings.Join(m.tree[m.cur.line:m.cur.h], "\n")
+	bot := clamp(m.cur.top+ m.cur.h, 0, len(m.tree))
+	return strings.Join(m.tree[m.cur.top:bot], "\n") + fmt.Sprintf("\ntop:h %d:%d", m.cur.top, bot)
 }
 
 func clamp(v, low, high int) int {
