@@ -9,7 +9,9 @@ import (
 )
 
 func main() {
-	err := tea.NewProgram(new(tree.Model)).Start()
+	m := new(tree.Model)
+	m.Root = "/tmp"
+	err := tea.NewProgram(m).Start()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Err: %s", err.Error())
 	}

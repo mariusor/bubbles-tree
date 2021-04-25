@@ -5,10 +5,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
+
+var Debug = true
+var DebugLines = make([]string, 0)
 
 type cursor struct {
 	h, w      int
@@ -18,42 +20,63 @@ type cursor struct {
 // Model is the Bubble Tea model for this user interface.
 type Model struct{
 	Err    error
+	Root   string
 	cur    cursor
 	top    *os.File
 	tree   []string
 }
 
-func (m *Model) Prev() error {
-	m.cur.top = clamp(m.cur.top-1, 0, len(m.tree)-m.cur.h)
+func (m *Model) Prev(i int) error {
+	m.cur.top = clamp(m.cur.top-i, 0, max(len(m.tree)-m.cur.h, m.cur.h))
 	return nil
 }
 
-func (m *Model) Next() error {
-	m.cur.top = clamp(m.cur.top+1, 0, len(m.tree)-m.cur.h)
+func (m *Model) Next(i int) error {
+	m.cur.top = clamp(m.cur.top+i, 0, max(len(m.tree)-m.cur.h, m.cur.h))
 	return nil
+}
+
+type TreeMsg string
+
+func (m* Model) init() tea.Msg {
+	m.Err = filepath.Walk(m.Root, func(p string, fi fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		//if p != root && fi.IsDir() {
+		//	return fs.SkipDir
+		//}
+		m.tree = append(m.tree, p)
+		return nil
+	})
+	return TreeMsg("inited")
 }
 
 func (m *Model) Init() tea.Cmd {
-	return func() tea.Msg {
-		//m.tree = strings.Split(staticTree, "\n")
-		m.top, m.Err = os.Open("/tmp")
-		fmt.Printf("inited: %s", m.top.Name())
-		return nil
-	}
+	return m.init
 }
 
 // Update is the Tea update function which binds keystrokes to pagination.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var err error
+	DebugLines = DebugLines[:0]
 	switch msg := msg.(type) {
+	case TreeMsg:
+		fmt.Printf("%s", string(msg))
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
-			err = m.Prev()
+			err = m.Prev(1)
 		case "down", "j":
-			err = m.Next()
+			err = m.Next(1)
+		case "pgup":
+			err = m.Prev(m.cur.h)
+		case "pgdown":
+			err = m.Next(m.cur.h)
 		case "q", "esc", "ctrl+q", "ctrl+c":
 			return m, tea.Quit
+		default:
+			m.Err = fmt.Errorf("unknown key %s", msg.String())
 		}
 	case tea.WindowSizeMsg:
 		m.cur.h = msg.Height
@@ -71,24 +94,28 @@ func (m Model) View() string {
 }
 
 func (m Model) render() string {
-	if m.Err != nil {
-		return m.Err.Error()
-	}
-	if m.top == nil {
-		return "waiting for init message"
-	}
-	root := m.top.Name()
-	filepath.Walk(root, func(p string, fi fs.FileInfo, err error) error {
-		if path.Dir(p) == root {
-			m.tree = append(m.tree, p)
+	bot := clamp(m.cur.top+m.cur.h, m.cur.h, len(m.tree))
+	top := clamp(m.cur.top, 0, max(len(m.tree)-m.cur.h, m.cur.h))
+	if Debug {
+		DebugLines = append(DebugLines, fmt.Sprintf("w:h %d:%d", m.cur.w, m.cur.h))
+		DebugLines = append(DebugLines, fmt.Sprintf("t:b %d:%d", top, bot))
+		DebugLines = append(DebugLines, fmt.Sprintf("lines: %d", len(m.tree)))
+		if len(m.tree) > bot {
+			bot -= len(DebugLines)
 		}
-		return nil
-	})
-	if m.tree == nil {
-		return "waiting for init message"
 	}
-	bot := clamp(m.cur.top+ m.cur.h, 0, len(m.tree))
-	return strings.Join(m.tree[m.cur.top:bot], "\n") + fmt.Sprintf("\ntop:h %d:%d", m.cur.top, bot)
+	var lines []string
+	if len(m.tree) > bot {
+		lines = m.tree[top:bot]
+	}
+	if m.Err != nil {
+		lines = append([]string{m.Err.Error()}, lines...)
+	}
+	if Debug {
+		lines = append(DebugLines, lines...)
+		DebugLines = DebugLines[:0]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func clamp(v, low, high int) int {
