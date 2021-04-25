@@ -2,16 +2,26 @@ package tree
 
 import (
 	"fmt"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"io"
+	"os"
 	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
-var Debug = true
-var DebugLines = make([]string, 0)
+
+type NodeState int
+
+const (
+	NodeCollapsed = 1 << iota
+	NodeCollapsible
+	NodeError
+	NodeDebug
+)
 
 type Treeish interface {
-	Walk() ([]string, error)
+	Walk(int) ([]string, error)
+	State(s string) (NodeState, error)
 }
 
 type cursor struct {
@@ -19,9 +29,13 @@ type cursor struct {
 	top, left int
 }
 
+type errModel struct {
+	Debug bool
+	tree  map[NodeState][]string
+}
+
 // Model is the Bubble Tea model for this user interface.
 type Model struct{
-	Err    error
 	t      Treeish
 	cur    cursor
 	tree   []string
@@ -30,6 +44,7 @@ type Model struct{
 func New(t Treeish) *Model {
 	m := new(Model)
 	m.t = t
+	m.tree = make([]string, 0)
 	return m
 }
 
@@ -46,7 +61,7 @@ func (m *Model) Next(i int) error {
 type TreeMsg string
 
 func (m* Model) init() tea.Msg {
-	m.tree, m.Err = m.t.Walk()
+	walk(m)
 	return TreeMsg("inited")
 }
 
@@ -54,34 +69,51 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
+func walk(m *Model) error {
+	var err error
+	if m.tree, err = m.t.Walk(m.cur.h); err != nil {
+		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
+	}
+	return nil
+}
+
 // Update is the Tea update function which binds keystrokes to pagination.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var err error
-	DebugLines = DebugLines[:0]
+	needsWalk := false
 	switch msg := msg.(type) {
-	case TreeMsg:
-		fmt.Printf("%s", string(msg))
+	//case TreeMsg:
+	//	m.tree = append(m.tree, DebugNode{string(msg)})
 	case tea.KeyMsg:
+		// TODO(marius): we can create a data type that can be passed to the model and would function as key mapping.
+		//   So the dev can load the mapping from someplace.
+		//   There can be one where we add all the Readline bindings for example.
 		switch msg.String() {
 		case "up", "k":
 			err = m.Prev(1)
 		case "down", "j":
 			err = m.Next(1)
+			needsWalk = true
 		case "pgup":
 			err = m.Prev(m.cur.h)
+			needsWalk = true
 		case "pgdown":
 			err = m.Next(m.cur.h)
+			needsWalk = true
 		case "q", "esc", "ctrl+q", "ctrl+c":
 			return m, tea.Quit
 		default:
-			m.Err = fmt.Errorf("unknown key %s", msg.String())
+			fmt.Fprintf(os.Stderr, "unknown key %s\n", msg.String())
 		}
 	case tea.WindowSizeMsg:
 		m.cur.h = msg.Height
 		m.cur.w = msg.Width
 	}
 	if err != nil {
-		m.Err = err
+		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
+	}
+	if needsWalk {
+		walk(m)
 	}
 	return m, nil
 }
@@ -91,40 +123,39 @@ func (m Model) View() string {
 	return m.render()
 }
 
-var (
-	errForegroundColor = lipgloss.AdaptiveColor{ Light: "#E03F3F", Dark: "#F45B5B" }
-	errBackgroundColor = lipgloss.AdaptiveColor{ Light: "#212121", Dark: "#4A4A4A" }
-	errStyle = lipgloss.Style{}.Foreground(errForegroundColor).Background(errBackgroundColor)
+func (m Model) renderNode (t string, builder io.StringWriter) error {
+	style := defaultStyle
+	padding := 5
+	annotation := ""
+	st, err := m.t.State(t)
+	if st & NodeCollapsed == NodeCollapsed {
+		annotation = SquaredMinus
+	}
+	if st & NodeCollapsible == NodeCollapsible {
+		annotation = SquaredPlus
+	}
 
-	debugForegroundColor = lipgloss.AdaptiveColor{ Light: "#FFA348", Dark: "#FFBE6F" }
-	debugBackgroundColor = lipgloss.AdaptiveColor{ Light: "#212121", Dark: "#4A4A4A" }
-	debugStyle = lipgloss.Style{}.Foreground(debugForegroundColor).Background(debugBackgroundColor)
-)
+	//_, file := path.Split(t)
+	builder.WriteString(fmt.Sprintf("%4s ", annotation))
+	builder.WriteString(style.Width(m.cur.w-padding).Render(t))
+	builder.WriteString("\n")
+	return err
+}
 
 func (m Model) render() string {
-	bot := clamp(m.cur.top+m.cur.h, m.cur.h, len(m.tree))
 	top := clamp(m.cur.top, 0, max(len(m.tree)-m.cur.h, m.cur.h))
-	if Debug {
-		DebugLines = append(DebugLines, debugStyle.Width(m.cur.w).Render(fmt.Sprintf("w:h %d:%d", m.cur.w, m.cur.h)))
-		DebugLines = append(DebugLines, debugStyle.Width(m.cur.w).Render(fmt.Sprintf("t:b %d:%d", top, bot)))
-		DebugLines = append(DebugLines, debugStyle.Width(m.cur.w).Render(fmt.Sprintf("lines: %d", len(m.tree))))
-		if len(m.tree) > bot {
-			bot -= len(DebugLines)
-		}
-	}
-	var lines []string
+	bot := clamp(top+m.cur.h, m.cur.h, len(m.tree))
+
+	builder := strings.Builder{}
+
+	var nodes []string
 	if len(m.tree) > bot {
-		lines = m.tree[top:bot]
+		nodes = m.tree[top:bot]
 	}
-	if m.Err != nil {
-		err := []string{errStyle.Width(m.cur.w).Render(m.Err.Error())}
-		lines = append(err, lines...)
+	for _, n := range nodes {
+		m.renderNode(n, &builder)
 	}
-	if Debug {
-		lines = append(DebugLines, lines...)
-		DebugLines = DebugLines[:0]
-	}
-	return strings.Join(lines, "\n")
+	return builder.String()
 }
 
 func clamp(v, low, high int) int {
