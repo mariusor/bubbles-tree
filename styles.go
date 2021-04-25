@@ -15,6 +15,7 @@ const (
 
 var (
 	defaultStyle = lipgloss.Style{}
+	highlightStyle = defaultStyle.Reverse(true)
 
 	errForegroundColor = lipgloss.AdaptiveColor{Light: "#E03F3F", Dark: "#F45B5B"}
 	errBackgroundColor = lipgloss.AdaptiveColor{Light: "#212121", Dark: "#4A4A4A"}

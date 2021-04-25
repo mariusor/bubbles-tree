@@ -2,8 +2,8 @@ package tree
 
 import (
 	"fmt"
-	"io"
 	"os"
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,37 +24,53 @@ type Treeish interface {
 	State(s string) (NodeState, error)
 }
 
-type cursor struct {
+type viewport struct {
 	h, w      int
 	top, left int
 }
 
-type errModel struct {
-	Debug bool
-	tree  map[NodeState][]string
-}
-
 // Model is the Bubble Tea model for this user interface.
 type Model struct{
-	t      Treeish
-	cur    cursor
-	tree   []string
+	// the index of the current element in the 'tree'
+	pos  int
+	tree []string
+
+	t    Treeish
+	view viewport
 }
 
 func New(t Treeish) *Model {
 	m := new(Model)
 	m.t = t
-	m.tree = make([]string, 0)
 	return m
 }
 
+func (m *Model) Lines() []string {
+	bot := min(m.view.top+m.view.h, len(m.tree))
+	top := clamp(m.view.top, 0, len(m.tree)-bot)
+
+	//fmt.Fprintf(os.Stderr, "h:%d p:%d :: t:%d b:%d l:%d\n", m.view.h, m.pos, m.view.top, bot, len(m.tree))
+	return m.tree[top:bot]
+}
+
+// Prev moves the current position to the previous 'i'th element in the tree.
+// If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.cur.top = clamp(m.cur.top-i, 0, max(len(m.tree)-m.cur.h, m.cur.h))
+	m.pos = clamp(m.pos - i, 0, len(m.tree) - 1)
+	if m.pos < m.view.top {
+		m.view.top = clamp(m.pos, 0, max(len(m.tree)-m.view.h, m.view.h))
+	}
 	return nil
 }
 
+// Next moves the current position to the next 'i'th element in the tree
+// If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.cur.top = clamp(m.cur.top+i, 0, max(len(m.tree)-m.cur.h, m.cur.h))
+	m.pos = clamp(m.pos + i, 0, len(m.tree) - 1)
+	bot := min(m.view.top+m.view.h-1, len(m.tree))
+	if m.pos > bot {
+		m.view.top = clamp(bot+i, 0, len(m.tree) - 1)
+	}
 	return nil
 }
 
@@ -70,10 +86,28 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func walk(m *Model) error {
-	var err error
-	if m.tree, err = m.t.Walk(m.cur.h); err != nil {
+	paths, err := m.t.Walk(m.view.h - 5)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
 	}
+	sort.Slice(paths, func(i, j int) bool {
+		f1, _ := os.Stat(paths[i])
+		if f1 == nil {
+			return false
+		}
+		f2, _ := os.Stat(paths[j])
+		if f2 == nil {
+			return true
+		}
+		if f1.IsDir() {
+			if f2.IsDir() {
+				return f1.Name() < f2.Name()
+			}
+			return true
+		}
+		return false
+	})
+	m.tree = paths
 	return nil
 }
 
@@ -95,10 +129,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			err = m.Next(1)
 			needsWalk = true
 		case "pgup":
-			err = m.Prev(m.cur.h)
+			err = m.Prev(m.view.h)
 			needsWalk = true
 		case "pgdown":
-			err = m.Next(m.cur.h)
+			err = m.Next(m.view.h)
 			needsWalk = true
 		case "q", "esc", "ctrl+q", "ctrl+c":
 			return m, tea.Quit
@@ -106,8 +140,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fmt.Fprintf(os.Stderr, "unknown key %s\n", msg.String())
 		}
 	case tea.WindowSizeMsg:
-		m.cur.h = msg.Height
-		m.cur.w = msg.Width
+		m.view.h = msg.Height
+		m.view.w = msg.Width
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
@@ -123,39 +157,32 @@ func (m Model) View() string {
 	return m.render()
 }
 
-func (m Model) renderNode (t string, builder io.StringWriter) error {
+func (m Model) renderLine(i int) string {
 	style := defaultStyle
-	padding := 5
 	annotation := ""
-	st, err := m.t.State(t)
+	t := m.tree[i]
+	st, _ := m.t.State(t)
 	if st & NodeCollapsed == NodeCollapsed {
-		annotation = SquaredMinus
+		annotation = "-"
 	}
 	if st & NodeCollapsible == NodeCollapsible {
-		annotation = SquaredPlus
+		annotation = "+"
+	}
+	if i == min(m.pos, m.pos + m.view.top) {
+		style = highlightStyle
 	}
 
-	//_, file := path.Split(t)
-	builder.WriteString(fmt.Sprintf("%4s ", annotation))
-	builder.WriteString(style.Width(m.cur.w-padding).Render(t))
-	builder.WriteString("\n")
-	return err
+	return style.Render(fmt.Sprintf("%4s %s", annotation, t))
 }
 
 func (m Model) render() string {
-	top := clamp(m.cur.top, 0, max(len(m.tree)-m.cur.h, m.cur.h))
-	bot := clamp(top+m.cur.h, m.cur.h, len(m.tree))
-
-	builder := strings.Builder{}
-
-	var nodes []string
-	if len(m.tree) > bot {
-		nodes = m.tree[top:bot]
+	//fmt.Fprintf(os.Stderr, "WxH %dx%d - t:b %d:%d nc: %d\n", m.view.w, m.view.h, top, bot, len(m.tree))
+	cursor := m.Lines()
+	lines := make([]string, len(cursor))
+	for i := range cursor {
+		lines[i] = m.renderLine(i)
 	}
-	for _, n := range nodes {
-		m.renderNode(n, &builder)
-	}
-	return builder.String()
+	return strings.Join(lines, "\n")
 }
 
 func clamp(v, low, high int) int {
