@@ -3,14 +3,15 @@ package tree
 import (
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
 var Debug = true
 var DebugLines = make([]string, 0)
+
+type Treeish interface {
+	Walk() ([]string, error)
+}
 
 type cursor struct {
 	h, w      int
@@ -20,10 +21,15 @@ type cursor struct {
 // Model is the Bubble Tea model for this user interface.
 type Model struct{
 	Err    error
-	Root   string
+	t      Treeish
 	cur    cursor
-	top    *os.File
 	tree   []string
+}
+
+func New(t Treeish) *Model {
+	m := new(Model)
+	m.t = t
+	return m
 }
 
 func (m *Model) Prev(i int) error {
@@ -39,16 +45,7 @@ func (m *Model) Next(i int) error {
 type TreeMsg string
 
 func (m* Model) init() tea.Msg {
-	m.Err = filepath.Walk(m.Root, func(p string, fi fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		//if p != root && fi.IsDir() {
-		//	return fs.SkipDir
-		//}
-		m.tree = append(m.tree, p)
-		return nil
-	})
+	m.tree, m.Err = m.t.Walk()
 	return TreeMsg("inited")
 }
 
