@@ -21,7 +21,7 @@ func (p Path) State(file string) (NodeState, error) {
 	return state, nil
 }
 
-// Advance
+// Advance returns a new Treeish object based on the new path
 func (p Path) Advance(file string) Treeish {
 	return Path(file)
 }
@@ -34,7 +34,7 @@ func (p Path) Walk(cnt int) ([]string, error) {
 		if err != nil {
 			return nil
 		}
-		if filepath.Dir(file) == pp {
+		if file == pp || filepath.Dir(file) == pp {
 			all = append(all, file)
 		}
 		return nil
@@ -50,7 +50,7 @@ func (p Path) Walk(cnt int) ([]string, error) {
 		}
 		if f1.IsDir() {
 			if f2.IsDir() {
-				return f1.Name() < f2.Name()
+				return f1.Name() <= f2.Name()
 			}
 			return true
 		}
