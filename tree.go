@@ -26,7 +26,7 @@ type Treeish interface {
 type Node struct {
 	Path     string
 	State    NodeState
-	Childred []*Node
+	Children []*Node
 }
 
 type viewport struct {
@@ -120,6 +120,19 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
+func findNodeByPath(nodes []*Node, path string) *Node {
+	for _, node := range nodes {
+		if node.Path == path {
+			return node
+		}
+		child := findNodeByPath(node.Children, path)
+		if child != nil {
+			return child
+		}
+	}
+	return nil
+}
+
 func buildNodeTree(t Treeish, paths []string) ([]*Node, error) {
 	nodes := make([]*Node, 0)
 	for _, p := range paths {
@@ -128,7 +141,12 @@ func buildNodeTree(t Treeish, paths []string) ([]*Node, error) {
 			Path:  p,
 			State: st,
 		}
-		nodes = append(nodes, n)
+		ppath, _ := path.Split(p)
+		if parent := findNodeByPath(nodes, ppath); parent != nil {
+			parent.Children = append(parent.Children, n)
+		} else {
+			nodes = append(nodes, n)
+		}
 	}
 	return nodes, nil
 }
