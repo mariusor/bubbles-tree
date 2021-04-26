@@ -3,6 +3,8 @@ package tree
 import (
 	"fmt"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,19 +28,35 @@ type Treeish interface {
 type Node struct {
 	Path     string
 	State    NodeState
-	Children []*Node
+	Children Nodes
+}
+
+func (n Node) GoString() string {
+	return fmt.Sprintf("Node(%s)[%d]\n", n.Path, len(n.Children))
 }
 
 type viewport struct {
 	h, w      int
 	top, left int
+	pos       int
+}
+
+type Nodes []*Node
+
+func (n Nodes) Len() int {
+	len := 0
+	for _, node := range n {
+		len++
+		if node.Children != nil {
+			len += node.Children.Len()
+		}
+	}
+	return len
 }
 
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
-	// the index of the current element in the 'tree'
-	pos  int
-	tree []*Node
+	tree Nodes
 
 	t    Treeish
 	view viewport
@@ -50,12 +68,11 @@ func New(t Treeish) *Model {
 	return m
 }
 
-func (m *Model) Nodes() []*Node {
-	bot := min(m.view.top+m.view.h, len(m.tree))
-	top := clamp(m.view.top, 0, len(m.tree)-bot)
-
+func (m *Model) Nodes() Nodes {
+	//bot := min(m.view.top+m.view.h, len(m.tree))
+	//top := clamp(m.view.top, 0, len(m.tree)-bot)
 	//fmt.Fprintf(os.Stderr, "h:%d p:%d :: t:%d b:%d l:%d\n", m.view.h, m.pos, m.view.top, bot, len(m.tree))
-	return m.tree[top:bot]
+	return m.tree //[top:bot]
 }
 
 func (m Model) nodeAt(i int) *Node {
@@ -69,31 +86,16 @@ func (m Model) nodeAt(i int) *Node {
 
 // ToggleExpand
 func (m *Model) ToggleExpand() error {
-	/*
-		cur := m.nodeAt(m.pos)
-
-		currentTree := m.tree
-		m.t = m.t.Advance(cur)
-
-		err := walk(m)
-		if err != nil {
-			return err
-		}
-		newTree := m.tree
-
-		m.tree = append(currentTree[:m.pos+1], newTree...)
-		m.tree = append(m.tree, currentTree[m.pos:]...)
-	*/
-
+	m.nodeAt(m.view.pos).State ^= NodeCollapsed
 	return nil
 }
 
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.pos = clamp(m.pos-i, 0, len(m.tree)-1)
-	if m.pos < m.view.top {
-		m.view.top = clamp(m.pos, 0, max(len(m.tree)-m.view.h, m.view.h))
+	m.view.pos = clamp(m.view.pos-i, 0, m.view.h)
+	if m.view.pos < m.view.top {
+		m.view.top = clamp(m.view.pos, 0, m.view.h)
 	}
 	return nil
 }
@@ -101,10 +103,10 @@ func (m *Model) Prev(i int) error {
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.pos = clamp(m.pos+i, 0, len(m.tree)-1)
-	bot := min(m.view.top+m.view.h-1, len(m.tree))
-	if m.pos > bot {
-		m.view.top = clamp(bot+i, 0, len(m.tree)-1)
+	m.view.pos = clamp(m.view.pos+i, 0, min(m.view.h, m.tree.Len()))
+	bot := min(m.view.top+m.view.h-1, m.view.h)
+	if m.view.pos > bot {
+		m.view.top = clamp(bot+i, 0, m.view.h)
 	}
 	return nil
 }
@@ -120,9 +122,9 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
-func findNodeByPath(nodes []*Node, path string) *Node {
+func findNodeByPath(nodes Nodes, path string) *Node {
 	for _, node := range nodes {
-		if node.Path == path {
+		if filepath.Clean(node.Path) == filepath.Clean(path) {
 			return node
 		}
 		child := findNodeByPath(node.Children, path)
@@ -133,18 +135,26 @@ func findNodeByPath(nodes []*Node, path string) *Node {
 	return nil
 }
 
-func buildNodeTree(t Treeish, paths []string) ([]*Node, error) {
-	nodes := make([]*Node, 0)
-	for _, p := range paths {
+func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
+	flatNodes := make(Nodes, len(paths))
+	for i, p := range paths {
 		st, _ := t.State(p)
-		n := &Node{
+		if st&NodeCollapsible == NodeCollapsible {
+			st |= NodeCollapsed
+		}
+		flatNodes[i] = &Node{
 			Path:  p,
 			State: st,
 		}
-		ppath, _ := path.Split(p)
-		if parent := findNodeByPath(nodes, ppath); parent != nil {
+	}
+	nodes := make(Nodes, 0)
+	for _, n := range flatNodes {
+		ppath, _ := path.Split(n.Path)
+		if parent := findNodeByPath(flatNodes, ppath); parent != nil {
 			parent.Children = append(parent.Children, n)
+			//fmt.Fprintf(os.Stderr, "Parent found : %s vs %s\n", path.Clean(n.Path), path.Clean(ppath))
 		} else {
+			//fmt.Fprintf(os.Stderr, "Parent not found: %s vs %s\n", path.Clean(n.Path), path.Clean(ppath))
 			nodes = append(nodes, n)
 		}
 	}
@@ -160,6 +170,7 @@ func walk(m *Model) error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
 	}
+	//fmt.Fprintf(os.Stderr, "tree %#v\n", m.tree)
 	return nil
 }
 
@@ -211,29 +222,49 @@ func (m Model) View() string {
 	return m.render()
 }
 
-func (m Model) renderNode(i int) string {
+func (m Model) renderNode(t *Node, i int) string {
 	style := defaultStyle
 	annotation := ""
-	t := m.tree[i]
-	if t.State&NodeCollapsed == NodeCollapsed {
-		annotation = "-"
+	padding := ""
+
+	//level := len(strings.Split(t.Path, "/")) - 1
+	_, name := path.Split(t.Path)
+
+	if len(t.Children) > 0 && t.State&NodeCollapsed == NodeCollapsed {
+		annotation = SquaredMinus
 	}
-	if t.State&NodeCollapsible == NodeCollapsible {
-		annotation = "+"
+	if len(t.Children) > 0 && t.State&NodeCollapsible == NodeCollapsible {
+		annotation = SquaredPlus
 	}
-	if i == min(m.pos, m.pos+m.view.top) {
+
+	if i == m.view.pos {
 		style = highlightStyle
 	}
 
-	return style.Render(fmt.Sprintf("%4s %s", annotation, t))
+	/*
+		for j := 1; j < level; j++ {
+			padding += BoxDrawingsHorizontal
+		}
+	*/
+
+	return style.Width(m.view.w).Render(fmt.Sprintf("%s %2s %s", padding, annotation, name))
 }
 
 func (m Model) render() string {
 	//fmt.Fprintf(os.Stderr, "WxH %dx%d - t:b %d:%d nc: %d\n", m.view.w, m.view.h, top, bot, len(m.tree))
 	cursor := m.Nodes()
-	lines := make([]string, len(cursor))
-	for i := range cursor {
-		lines[i] = m.renderNode(i)
+	lines := make([]string, 0)
+
+	lastLine := 0
+	for _, n := range cursor {
+		lines = append(lines, m.renderNode(n, lastLine))
+		lastLine++
+		if len(n.Children) > 0 {
+			for _, c := range n.Children {
+				lines = append(lines, m.renderNode(c, lastLine))
+				lastLine++
+			}
+		}
 	}
 	return strings.Join(lines, "\n")
 }
