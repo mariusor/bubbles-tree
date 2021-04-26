@@ -20,6 +20,11 @@ func (p Path) State(file string) (NodeState, error) {
 	return state, nil
 }
 
+// Advance
+func (p Path) Advance(file string) Treeish {
+	return Path(file)
+}
+
 // Walk will load cnt element from the current path
 func (p Path) Walk(cnt int) ([]string, error) {
 	all := make([]string, 0)
@@ -29,10 +34,7 @@ func (p Path) Walk(cnt int) ([]string, error) {
 			return nil
 		}
 		if filepath.Dir(file) == pp {
-			//fmt.Fprintf(os.Stderr, "%s == %s : %t\n", filepath.Dir(file), pp, filepath.Dir(file) == pp )
 			all = append(all, file)
-		} else {
-			//fmt.Fprintf(os.Stderr, "skipped %s\n", file)
 		}
 		return nil
 	})

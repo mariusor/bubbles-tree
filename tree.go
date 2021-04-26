@@ -9,7 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-
 type NodeState int
 
 const (
@@ -20,8 +19,9 @@ const (
 )
 
 type Treeish interface {
+	Advance(string) Treeish
 	Walk(int) ([]string, error)
-	State(s string) (NodeState, error)
+	State(string) (NodeState, error)
 }
 
 type viewport struct {
@@ -30,7 +30,7 @@ type viewport struct {
 }
 
 // Model is the Bubble Tea model for this user interface.
-type Model struct{
+type Model struct {
 	// the index of the current element in the 'tree'
 	pos  int
 	tree []string
@@ -53,10 +53,38 @@ func (m *Model) Lines() []string {
 	return m.tree[top:bot]
 }
 
+func (m Model) nodeAt(i int) string {
+	for j, p := range m.tree {
+		if j == i {
+			return p
+		}
+	}
+	return ""
+}
+
+// ToggleExpand
+func (m *Model) ToggleExpand() error {
+	cur := m.nodeAt(m.pos)
+
+	currentTree := m.tree
+	m.t = m.t.Advance(cur)
+
+	err := walk(m)
+	if err != nil {
+		return err
+	}
+	newTree := m.tree
+
+	m.tree = append(currentTree[:m.pos+1], newTree...)
+	m.tree = append(m.tree, currentTree[m.pos:]...)
+
+	return nil
+}
+
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.pos = clamp(m.pos - i, 0, len(m.tree) - 1)
+	m.pos = clamp(m.pos-i, 0, len(m.tree)-1)
 	if m.pos < m.view.top {
 		m.view.top = clamp(m.pos, 0, max(len(m.tree)-m.view.h, m.view.h))
 	}
@@ -66,17 +94,17 @@ func (m *Model) Prev(i int) error {
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.pos = clamp(m.pos + i, 0, len(m.tree) - 1)
+	m.pos = clamp(m.pos+i, 0, len(m.tree)-1)
 	bot := min(m.view.top+m.view.h-1, len(m.tree))
 	if m.pos > bot {
-		m.view.top = clamp(bot+i, 0, len(m.tree) - 1)
+		m.view.top = clamp(bot+i, 0, len(m.tree)-1)
 	}
 	return nil
 }
 
 type TreeMsg string
 
-func (m* Model) init() tea.Msg {
+func (m *Model) init() tea.Msg {
 	walk(m)
 	return TreeMsg("inited")
 }
@@ -123,6 +151,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		//   So the dev can load the mapping from someplace.
 		//   There can be one where we add all the Readline bindings for example.
 		switch msg.String() {
+		case "enter":
+			err = m.ToggleExpand()
 		case "up", "k":
 			err = m.Prev(1)
 		case "down", "j":
@@ -162,13 +192,13 @@ func (m Model) renderLine(i int) string {
 	annotation := ""
 	t := m.tree[i]
 	st, _ := m.t.State(t)
-	if st & NodeCollapsed == NodeCollapsed {
+	if st&NodeCollapsed == NodeCollapsed {
 		annotation = "-"
 	}
-	if st & NodeCollapsible == NodeCollapsible {
+	if st&NodeCollapsible == NodeCollapsible {
 		annotation = "+"
 	}
-	if i == min(m.pos, m.pos + m.view.top) {
+	if i == min(m.pos, m.pos+m.view.top) {
 		style = highlightStyle
 	}
 
