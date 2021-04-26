@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 type Path string
@@ -37,6 +38,23 @@ func (p Path) Walk(cnt int) ([]string, error) {
 			all = append(all, file)
 		}
 		return nil
+	})
+	sort.Slice(all, func(i, j int) bool {
+		f1, _ := os.Stat(all[i])
+		if f1 == nil {
+			return false
+		}
+		f2, _ := os.Stat(all[j])
+		if f2 == nil {
+			return true
+		}
+		if f1.IsDir() {
+			if f2.IsDir() {
+				return f1.Name() < f2.Name()
+			}
+			return true
+		}
+		return false
 	})
 	return all, err
 }

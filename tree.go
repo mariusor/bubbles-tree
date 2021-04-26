@@ -3,7 +3,6 @@ package tree
 import (
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,6 +23,12 @@ type Treeish interface {
 	State(string) (NodeState, error)
 }
 
+type Node struct {
+	Path     string
+	State    NodeState
+	Childred []*Node
+}
+
 type viewport struct {
 	h, w      int
 	top, left int
@@ -33,7 +38,7 @@ type viewport struct {
 type Model struct {
 	// the index of the current element in the 'tree'
 	pos  int
-	tree []string
+	tree []*Node
 
 	t    Treeish
 	view viewport
@@ -45,7 +50,7 @@ func New(t Treeish) *Model {
 	return m
 }
 
-func (m *Model) Lines() []string {
+func (m *Model) Nodes() []*Node {
 	bot := min(m.view.top+m.view.h, len(m.tree))
 	top := clamp(m.view.top, 0, len(m.tree)-bot)
 
@@ -53,30 +58,32 @@ func (m *Model) Lines() []string {
 	return m.tree[top:bot]
 }
 
-func (m Model) nodeAt(i int) string {
+func (m Model) nodeAt(i int) *Node {
 	for j, p := range m.tree {
 		if j == i {
 			return p
 		}
 	}
-	return ""
+	return nil
 }
 
 // ToggleExpand
 func (m *Model) ToggleExpand() error {
-	cur := m.nodeAt(m.pos)
+	/*
+		cur := m.nodeAt(m.pos)
 
-	currentTree := m.tree
-	m.t = m.t.Advance(cur)
+		currentTree := m.tree
+		m.t = m.t.Advance(cur)
 
-	err := walk(m)
-	if err != nil {
-		return err
-	}
-	newTree := m.tree
+		err := walk(m)
+		if err != nil {
+			return err
+		}
+		newTree := m.tree
 
-	m.tree = append(currentTree[:m.pos+1], newTree...)
-	m.tree = append(m.tree, currentTree[m.pos:]...)
+		m.tree = append(currentTree[:m.pos+1], newTree...)
+		m.tree = append(m.tree, currentTree[m.pos:]...)
+	*/
 
 	return nil
 }
@@ -113,29 +120,28 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
+func buildNodeTree(t Treeish, paths []string) ([]*Node, error) {
+	nodes := make([]*Node, 0)
+	for _, p := range paths {
+		st, _ := t.State(p)
+		n := &Node{
+			Path:  p,
+			State: st,
+		}
+		nodes = append(nodes, n)
+	}
+	return nodes, nil
+}
+
 func walk(m *Model) error {
 	paths, err := m.t.Walk(m.view.h - 5)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
 	}
-	sort.Slice(paths, func(i, j int) bool {
-		f1, _ := os.Stat(paths[i])
-		if f1 == nil {
-			return false
-		}
-		f2, _ := os.Stat(paths[j])
-		if f2 == nil {
-			return true
-		}
-		if f1.IsDir() {
-			if f2.IsDir() {
-				return f1.Name() < f2.Name()
-			}
-			return true
-		}
-		return false
-	})
-	m.tree = paths
+	m.tree, err = buildNodeTree(m.t, paths)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
+	}
 	return nil
 }
 
@@ -187,15 +193,14 @@ func (m Model) View() string {
 	return m.render()
 }
 
-func (m Model) renderLine(i int) string {
+func (m Model) renderNode(i int) string {
 	style := defaultStyle
 	annotation := ""
 	t := m.tree[i]
-	st, _ := m.t.State(t)
-	if st&NodeCollapsed == NodeCollapsed {
+	if t.State&NodeCollapsed == NodeCollapsed {
 		annotation = "-"
 	}
-	if st&NodeCollapsible == NodeCollapsible {
+	if t.State&NodeCollapsible == NodeCollapsible {
 		annotation = "+"
 	}
 	if i == min(m.pos, m.pos+m.view.top) {
@@ -207,10 +212,10 @@ func (m Model) renderLine(i int) string {
 
 func (m Model) render() string {
 	//fmt.Fprintf(os.Stderr, "WxH %dx%d - t:b %d:%d nc: %d\n", m.view.w, m.view.h, top, bot, len(m.tree))
-	cursor := m.Lines()
+	cursor := m.Nodes()
 	lines := make([]string, len(cursor))
 	for i := range cursor {
-		lines[i] = m.renderLine(i)
+		lines[i] = m.renderNode(i)
 	}
 	return strings.Join(lines, "\n")
 }
