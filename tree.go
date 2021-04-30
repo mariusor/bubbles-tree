@@ -2,7 +2,6 @@ package tree
 
 import (
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -39,6 +38,12 @@ func (m *Model) debug(s string, params ...interface{}) {
 		m.debugNodes = make([]Node, 0)
 	}
 	m.debugNodes = append(m.debugNodes, debug(fmt.Sprintf(s, params...)))
+}
+func (m *Model) err(err error) {
+	if m.debugNodes == nil {
+		m.debugNodes = make([]Node, 0)
+	}
+	m.debugNodes = append(m.debugNodes, debug(err))
 }
 
 func (d debugNode) String() string {
@@ -94,6 +99,7 @@ type viewport struct {
 	h, w      int
 	top, left int
 	pos       int
+	lines     []string
 }
 
 type Nodes []Node
@@ -113,7 +119,7 @@ func (n Nodes) Len() int {
 type Model struct {
 	tree       Nodes
 	debugNodes Nodes
-	showDebug  bool
+	Debug      bool
 
 	t    Treeish
 	view viewport
@@ -125,14 +131,8 @@ func New(t Treeish) *Model {
 	return m
 }
 
-func (m *Model) Nodes() Nodes {
-	bot := min(m.view.top+m.view.h, len(m.tree))
-	//top := clamp(m.view.top, 0, len(m.tree)-bot)
-	m.debugNodes = append(m.debugNodes, debug(fmt.Sprintf("h:%d p:%d :: t:%d b:%d l:%d\n", m.view.h, m.view.pos, m.view.top, bot, len(m.tree))))
-	if m.showDebug {
-		return m.debugNodes
-	}
-	return m.tree //[top:bot]
+func (m *Model) Children() Nodes {
+	return m.tree
 }
 
 func (m Model) nodeAt(i int) Node {
@@ -155,21 +155,23 @@ func (m *Model) ToggleExpand() error {
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.view.pos = clamp(m.view.pos-i, 0, m.view.h)
+	m.view.pos = clamp(m.view.pos-i, 0, min(len(m.tree), m.view.h)-1)
 	if m.view.pos < m.view.top {
 		m.view.top = clamp(m.view.pos, 0, m.view.h)
 	}
+	m.debug("Prev: top %d, New pos: %d", m.view.top, m.view.pos)
 	return nil
 }
 
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.view.pos = clamp(m.view.pos+i, 0, min(m.view.h, m.tree.Len()))
+	m.view.pos = clamp(m.view.pos+i, 0, min(m.view.h, m.tree.Len())-1)
 	bot := min(m.view.top+m.view.h-1, m.view.h)
 	if m.view.pos > bot {
 		m.view.top = clamp(bot+i, 0, m.view.h)
 	}
+	m.debug("Next: top %d, New pos: %d", m.view.top, m.view.pos)
 	return nil
 }
 
@@ -227,29 +229,30 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 func walk(m *Model) error {
 	paths, err := m.t.Walk(m.view.h - 5)
 	if err != nil {
-		m.debug("Err: %s\n", err)
+		m.err(err)
 	}
 	m.tree, err = buildNodeTree(m.t, paths)
 	if err != nil {
-		m.debug("Err: %s\n", err)
+		m.err(err)
 	}
 	return nil
 }
 
 // Update is the Tea update function which binds keystrokes to pagination.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.debugNodes = m.debugNodes[:0]
 	var err error
 	needsWalk := false
 	switch msg := msg.(type) {
-	//case TreeMsg:
-	//	m.tree = append(m.tree, DebugNode{string(msg)})
+	case TreeMsg:
+		m.debug(string(msg))
 	case tea.KeyMsg:
 		// TODO(marius): we can create a data type that can be passed to the model and would function as key mapping.
 		//   So the dev can load the mapping from someplace.
 		//   There can be one where we add all the Readline bindings for example.
 		switch msg.String() {
 		case "`":
-			m.showDebug = !m.showDebug
+			m.Debug = !m.Debug
 		case "enter":
 			err = m.ToggleExpand()
 		case "up", "k":
@@ -266,14 +269,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "esc", "ctrl+q", "ctrl+c":
 			return m, tea.Quit
 		default:
-			fmt.Fprintf(os.Stderr, "unknown key %s\n", msg.String())
+			m.debug("Unknown key %s", msg.String())
 		}
 	case tea.WindowSizeMsg:
 		m.view.h = msg.Height
 		m.view.w = msg.Width
+		m.view.lines = make([]string, m.view.h)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
+		m.err(err)
 	}
 	if needsWalk {
 		walk(m)
@@ -291,7 +295,7 @@ func (m Model) renderNode(t Node, i int) string {
 	annotation := ""
 	padding := ""
 
-	//level := len(strings.Split(t.Path, "/")) - 1
+	level := len(strings.Split(t.String(), "/")) - 1
 	_, name := path.Split(t.String())
 
 	if len(t.Children()) > 0 && t.State()&NodeCollapsed == NodeCollapsed {
@@ -301,36 +305,67 @@ func (m Model) renderNode(t Node, i int) string {
 		annotation = SquaredPlus
 	}
 
-	if i == m.view.pos {
+	if t.State()&NodeDebug == NodeDebug {
+		style = debugStyle
+	}
+	if t.State()&NodeError == NodeError {
+		style = errStyle
+	}
+	if i == m.view.pos + m.view.top {
 		style = highlightStyle
 	}
 
-	/*
-		for j := 1; j < level; j++ {
-			padding += BoxDrawingsHorizontal
-		}
-	*/
+	for j := 1; j < level; j++ {
+		//padding += BoxDrawingsHorizontal
+	}
 
 	return style.Width(m.view.w).Render(fmt.Sprintf("%s %2s %s", padding, annotation, name))
 }
 
 func (m Model) render() string {
-	//fmt.Fprintf(os.Stderr, "WxH %dx%d - t:b %d:%d nc: %d\n", m.view.w, m.view.h, top, bot, len(m.tree))
-	cursor := m.Nodes()
-	lines := make([]string, 0)
+	if m.view.h == 0 {
+		return ""
+	}
+	cursor := m.Children()
+	if cursor.Len() == 0 {
+		return ""
+	}
+	m.debug("WxH %dx%d - nc: %d\n", m.view.w, m.view.h, cursor.Len())
 
-	lastLine := 0
-	for _, n := range cursor {
-		lines = append(lines, m.renderNode(n, lastLine))
-		lastLine++
+	maxLines := m.view.h
+	if m.Debug {
+		maxLines -= m.debugNodes.Len()
+	}
+	m.debug("display lines: t:%d b:%d tel:%d h:%d", m.view.top, maxLines, cursor.Len(), m.view.h)
+	for i := range m.view.lines {
+		j := i+m.view.top
+		if j >= len(cursor) {
+			break
+		}
+		n := cursor[j]
+		m.view.lines[i] = m.renderNode(n, j)
 		if len(n.Children()) > 0 {
-			for _, c := range n.Children() {
-				lines = append(lines, m.renderNode(c, lastLine))
-				lastLine++
+			for k, c := range n.Children() {
+				lineIndx := i+k
+				if lineIndx >= maxLines {
+					break
+				}
+				m.view.lines[lineIndx] = m.renderNode(c, lineIndx)
 			}
 		}
+		if i > m.view.h - len(m.debugNodes) {
+			break
+		}
 	}
-	return strings.Join(lines, "\n")
+	debStart := len(m.view.lines) - len(m.debugNodes)-1
+	m.debug("total lines %d, deb lines @:%d", len(m.view.lines), debStart)
+	if m.Debug {
+		for i, n := range m.debugNodes {
+			lineIndx := debStart+i
+			m.view.lines[lineIndx] = m.renderNode(n, -1)
+		}
+	}
+	return strings.Join(m.view.lines, "\n")
 }
 
 func clamp(v, low, high int) int {
