@@ -25,14 +25,69 @@ type Treeish interface {
 	State(string) (NodeState, error)
 }
 
-type Node struct {
-	Path     string
-	State    NodeState
-	Children Nodes
+type debugNode struct {
+	Content interface{}
+	state   NodeState
 }
 
-func (n Node) GoString() string {
-	return fmt.Sprintf("Node(%s)[%d]\n", n.Path, len(n.Children))
+func debug(m interface{}) debugNode {
+	return debugNode{Content: m}
+}
+
+func (m *Model) debug(s string, params ...interface{}) {
+	if m.debugNodes == nil {
+		m.debugNodes = make([]Node, 0)
+	}
+	m.debugNodes = append(m.debugNodes, debug(fmt.Sprintf(s, params...)))
+}
+
+func (d debugNode) String() string {
+	switch n := d.Content.(type) {
+	case error:
+		return n.Error()
+	case string:
+		return n
+	}
+	return fmt.Sprintf("unknown type %T", d)
+}
+
+func (d debugNode) Children() Nodes {
+	return nil
+}
+
+func (d debugNode) State() NodeState {
+	if _, ok := d.Content.(error); ok {
+		return NodeError
+	}
+	return NodeDebug
+}
+
+type pathNode struct {
+	Path  string
+	state NodeState
+	Nodes Nodes
+}
+
+func (n pathNode) GoString() string {
+	return fmt.Sprintf("Node(%s)[%d]\n", n.Path, len(n.Children()))
+}
+
+func (n pathNode) String() string {
+	return n.Path
+}
+
+func (n pathNode) Children() Nodes {
+	return n.Nodes
+}
+
+func (n pathNode) State() NodeState {
+	return n.state
+}
+
+type Node interface {
+	String() string
+	Children() Nodes
+	State() NodeState
 }
 
 type viewport struct {
@@ -41,14 +96,14 @@ type viewport struct {
 	pos       int
 }
 
-type Nodes []*Node
+type Nodes []Node
 
 func (n Nodes) Len() int {
 	len := 0
 	for _, node := range n {
 		len++
-		if node.Children != nil {
-			len += node.Children.Len()
+		if node.Children() != nil {
+			len += node.Children().Len()
 		}
 	}
 	return len
@@ -56,7 +111,9 @@ func (n Nodes) Len() int {
 
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
-	tree Nodes
+	tree       Nodes
+	debugNodes Nodes
+	showDebug  bool
 
 	t    Treeish
 	view viewport
@@ -69,13 +126,16 @@ func New(t Treeish) *Model {
 }
 
 func (m *Model) Nodes() Nodes {
-	//bot := min(m.view.top+m.view.h, len(m.tree))
+	bot := min(m.view.top+m.view.h, len(m.tree))
 	//top := clamp(m.view.top, 0, len(m.tree)-bot)
-	//fmt.Fprintf(os.Stderr, "h:%d p:%d :: t:%d b:%d l:%d\n", m.view.h, m.pos, m.view.top, bot, len(m.tree))
+	m.debugNodes = append(m.debugNodes, debug(fmt.Sprintf("h:%d p:%d :: t:%d b:%d l:%d\n", m.view.h, m.view.pos, m.view.top, bot, len(m.tree))))
+	if m.showDebug {
+		return m.debugNodes
+	}
 	return m.tree //[top:bot]
 }
 
-func (m Model) nodeAt(i int) *Node {
+func (m Model) nodeAt(i int) Node {
 	for j, p := range m.tree {
 		if j == i {
 			return p
@@ -86,7 +146,9 @@ func (m Model) nodeAt(i int) *Node {
 
 // ToggleExpand
 func (m *Model) ToggleExpand() error {
-	m.nodeAt(m.view.pos).State ^= NodeCollapsed
+	if pn, ok := m.nodeAt(m.view.pos).(*pathNode); ok {
+		pn.state ^= NodeCollapsed
+	}
 	return nil
 }
 
@@ -122,12 +184,12 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
-func findNodeByPath(nodes Nodes, path string) *Node {
+func findNodeByPath(nodes Nodes, path string) Node {
 	for _, node := range nodes {
-		if filepath.Clean(node.Path) == filepath.Clean(path) {
+		if filepath.Clean(node.String()) == filepath.Clean(path) {
 			return node
 		}
-		child := findNodeByPath(node.Children, path)
+		child := findNodeByPath(node.Children(), path)
 		if child != nil {
 			return child
 		}
@@ -142,17 +204,18 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 		if st&NodeCollapsible == NodeCollapsible {
 			st |= NodeCollapsed
 		}
-		flatNodes[i] = &Node{
+		flatNodes[i] = &pathNode{
 			Path:  p,
-			State: st,
+			state: st,
 		}
 	}
 	nodes := make(Nodes, 0)
 	for _, n := range flatNodes {
-		ppath, _ := path.Split(n.Path)
+		ppath, _ := path.Split(n.String())
 		if parent := findNodeByPath(flatNodes, ppath); parent != nil {
-			parent.Children = append(parent.Children, n)
-			//fmt.Fprintf(os.Stderr, "Parent found : %s vs %s\n", path.Clean(n.Path), path.Clean(ppath))
+			if p, ok := parent.(*pathNode); ok {
+				p.Nodes = append(p.Nodes, n)
+			}
 		} else {
 			//fmt.Fprintf(os.Stderr, "Parent not found: %s vs %s\n", path.Clean(n.Path), path.Clean(ppath))
 			nodes = append(nodes, n)
@@ -164,13 +227,12 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 func walk(m *Model) error {
 	paths, err := m.t.Walk(m.view.h - 5)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
+		m.debug("Err: %s\n", err)
 	}
 	m.tree, err = buildNodeTree(m.t, paths)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Err: %s\n", err)
+		m.debug("Err: %s\n", err)
 	}
-	//fmt.Fprintf(os.Stderr, "tree %#v\n", m.tree)
 	return nil
 }
 
@@ -186,6 +248,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		//   So the dev can load the mapping from someplace.
 		//   There can be one where we add all the Readline bindings for example.
 		switch msg.String() {
+		case "`":
+			m.showDebug = !m.showDebug
 		case "enter":
 			err = m.ToggleExpand()
 		case "up", "k":
@@ -222,18 +286,18 @@ func (m Model) View() string {
 	return m.render()
 }
 
-func (m Model) renderNode(t *Node, i int) string {
+func (m Model) renderNode(t Node, i int) string {
 	style := defaultStyle
 	annotation := ""
 	padding := ""
 
 	//level := len(strings.Split(t.Path, "/")) - 1
-	_, name := path.Split(t.Path)
+	_, name := path.Split(t.String())
 
-	if len(t.Children) > 0 && t.State&NodeCollapsed == NodeCollapsed {
+	if len(t.Children()) > 0 && t.State()&NodeCollapsed == NodeCollapsed {
 		annotation = SquaredMinus
 	}
-	if len(t.Children) > 0 && t.State&NodeCollapsible == NodeCollapsible {
+	if len(t.Children()) > 0 && t.State()&NodeCollapsible == NodeCollapsible {
 		annotation = SquaredPlus
 	}
 
@@ -259,8 +323,8 @@ func (m Model) render() string {
 	for _, n := range cursor {
 		lines = append(lines, m.renderNode(n, lastLine))
 		lastLine++
-		if len(n.Children) > 0 {
-			for _, c := range n.Children {
+		if len(n.Children()) > 0 {
+			for _, c := range n.Children() {
 				lines = append(lines, m.renderNode(c, lastLine))
 				lastLine++
 			}
