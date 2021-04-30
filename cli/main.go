@@ -15,7 +15,9 @@ func main() {
 	if len(os.Args) > 1 {
 		path = tree.Path(os.Args[1])
 	}
-	err := tea.NewProgram(tree.New(path)).Start()
+	m := tree.New(path)
+	m.Debug = true
+	err := tea.NewProgram(m).Start()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Err: %s", err.Error())
 	}
