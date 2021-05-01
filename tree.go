@@ -123,7 +123,7 @@ func (n Nodes) at(i int) Node {
 			return p
 		}
 		if p.Children() != nil {
-			if nn := p.Children().at(i - j); nn != nil {
+			if nn := p.Children().at(i - j - 1); nn != nil {
 				return nn
 			}
 		}
@@ -370,15 +370,15 @@ func (m Model) render() string {
 	}
 	m.debug("display lines: t:%d b:%d tel:%d h:%d", m.view.top, maxLines, cursor.Len(), m.view.h)
 	for i := range m.view.lines {
-		j := i+m.view.top
-		if j >= len(cursor) {
+		lineIndx := i+m.view.top
+		if lineIndx >= len(cursor) {
 			break
 		}
-		n := cursor[j]
-		m.view.lines[i] = m.renderNode(n, j)
+		n := cursor.at(lineIndx)
+		m.view.lines[i] = m.renderNode(n, lineIndx)
 		if len(n.Children()) > 0 {
 			for k, c := range n.Children() {
-				lineIndx := i+k
+				lineIndx = i+k+1
 				if lineIndx >= maxLines {
 					break
 				}
