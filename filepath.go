@@ -31,12 +31,10 @@ func (p Path) Walk(cnt int) ([]string, error) {
 	all := make([]string, 0)
 	pp := filepath.Clean(string(p))
 	err := filepath.WalkDir(pp, func(file string, fi fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
+		if file != pp && filepath.Dir(file) != pp {
+			return filepath.SkipDir
 		}
-		if file == pp || filepath.Dir(file) == pp {
-			all = append(all, file)
-		}
+		all = append(all, file)
 		return nil
 	})
 	sort.Slice(all, func(i, j int) bool {
