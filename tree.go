@@ -165,15 +165,30 @@ func (m *Model) Children() Nodes {
 
 // ToggleExpand toggles the expanded state of the node pointed at by m.view.pos
 func (m *Model) ToggleExpand() error {
+	return nil
+}
+
+// Parent moves the whole Treeish to the parent node
+func (m *Model) Parent() error {
+	return nil
+}
+
+// Advance moves the whole Treeish to the node m.view.pos points at
+func (m *Model) Advance() error {
 	n := m.tree.at(m.view.pos)
 	if n == nil {
 		return fmt.Errorf("invalid node at pos %d", m.view.pos)
 	}
+	// TODO(marius): this behaviour needs to be moved to the Treeish interface, as all implementations
+	//  will need to know that a node is being collapsed or expanded.
 	if pn, ok := n.(*pathNode); ok {
-		m.debug("it's collapsible: %s  %d", n, n.State())
+		if pn.state & NodeCollapsed == NodeCollapsed {
+			//m.t = m.t.Advance(n.String())
+			//m.t.Walk(1)
+			m.debug("expanding: %s", n.String())
+		}
 		pn.state ^= NodeCollapsed
 	}
-	m.debug("expanding: %s  %d", n, n.State())
 	return nil
 }
 
@@ -294,7 +309,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "`":
 			m.Debug = !m.Debug
 		case "enter":
-			err = m.ToggleExpand()
+			err = m.Advance()
+		case "backspace":
+			err = m.Parent()
 		case "home":
 			err = m.Top()
 		case "end":
@@ -400,7 +417,6 @@ func (m Model) render() string {
 			break
 		}
 		n := cursor.at(lineIndx)
-		//m.view.lines[i] = fmt.Sprintf("%d : %d => %s", i, j, n.String())
 		m.view.lines[i] = m.renderNode(n, lineIndx, hints, -1)
 		hints = 0
 		if len(n.Children()) > 0 {
