@@ -20,6 +20,9 @@ const (
 	NodeNone = 0
 )
 
+// TODO(marius): we need to check if the parameter to Treeish.Advance() should be a Node,
+//   probably not, as it is internal to this package
+
 type Treeish interface {
 	Advance(string) Treeish
 	Walk(int) ([]string, error)
@@ -76,7 +79,7 @@ type pathNode struct {
 }
 
 func (n pathNode) GoString() string {
-	return fmt.Sprintf("Node(%s)[%d]\n", n.Path, len(n.Children()))
+	return fmt.Sprintf("Path: %s [%d]\n", n.Path, len(n.Children()))
 }
 
 func (n pathNode) String() string {
@@ -131,6 +134,15 @@ func (n Nodes) at(i int) Node {
 	return nil
 }
 
+func (n Nodes) GoString() string {
+	s := strings.Builder{}
+	s.WriteString(fmt.Sprintf("Nodes(%d)\n", len(n)))
+	for i, nn := range n {
+		s.WriteString(fmt.Sprintf("%d => %v\n",i, nn))
+	}
+	return s.String()
+}
+
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
 	tree       Nodes
@@ -151,7 +163,7 @@ func (m *Model) Children() Nodes {
 	return m.tree
 }
 
-// ToggleExpand
+// ToggleExpand toggles the expanded state of the node pointed at by m.view.pos
 func (m *Model) ToggleExpand() error {
 	n := m.tree.at(m.view.pos)
 	if n == nil {
@@ -322,12 +334,16 @@ func (m Model) View() string {
 	return m.render()
 }
 
-func (m Model) renderNode(t Node, i int) string {
+const (
+	NodeFirstChild = 1 << iota
+	NodeLastChild
+)
+
+func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 	style := defaultStyle
 	annotation := ""
 	padding := ""
 
-	level := len(strings.Split(t.String(), "/")) - 1
 	_, name := path.Split(t.String())
 
 	if t.State()&NodeCollapsible == NodeCollapsible {
@@ -343,15 +359,23 @@ func (m Model) renderNode(t Node, i int) string {
 	if t.State()&NodeError == NodeError {
 		style = errStyle
 	}
-	if i == m.view.pos + m.view.top {
+	if cur == m.view.pos + m.view.top {
 		style = highlightStyle
 	}
 
-	for j := 1; j < level; j++ {
-		//padding += BoxDrawingsHorizontal
+	for i := 0; i <= depth; i++ {
+		padding += " "
 	}
+	if nodeHints & NodeFirstChild == NodeFirstChild {
+		padding += BoxDrawingsUpAndRight
+	} else if nodeHints & NodeLastChild == NodeLastChild {
+		padding += BoxDrawingsUpAndRight
+	} else {
+		padding += BoxDrawingsVerticalAndRight
+	}
+	padding += BoxDrawingsHorizontal
 
-	return style.Width(m.view.w).Render(fmt.Sprintf("%s %2s %s", padding, annotation, name))
+	return style.Width(m.view.w).Render(fmt.Sprintf("%s%2s %s", padding, annotation, name))
 }
 
 func (m Model) render() string {
@@ -362,27 +386,34 @@ func (m Model) render() string {
 	if cursor.Len() == 0 {
 		return ""
 	}
-	m.debug("WxH %dx%d - nc: %d", m.view.w, m.view.h, cursor.Len())
+	//m.debug("WxH %dx%d - nc: %d", m.view.w, m.view.h, cursor.Len())
 
 	maxLines := m.view.h
 	if m.Debug {
 		maxLines -= m.debugNodes.Len()
 	}
-	m.debug("display lines: t:%d b:%d tel:%d h:%d", m.view.top, maxLines, cursor.Len(), m.view.h)
+	//m.debug("display lines: t:%d b:%d tel:%d h:%d", m.view.top, maxLines, cursor.Len(), m.view.h)
+	hints := NodeFirstChild
 	for i := range m.view.lines {
 		lineIndx := i+m.view.top
 		if lineIndx >= len(cursor) {
 			break
 		}
 		n := cursor.at(lineIndx)
-		m.view.lines[i] = m.renderNode(n, lineIndx)
+		//m.view.lines[i] = fmt.Sprintf("%d : %d => %s", i, j, n.String())
+		m.view.lines[i] = m.renderNode(n, lineIndx, hints, -1)
+		hints = 0
 		if len(n.Children()) > 0 {
 			for k, c := range n.Children() {
 				lineIndx = i+k+1
 				if lineIndx >= maxLines {
 					break
 				}
-				m.view.lines[lineIndx] = m.renderNode(c, lineIndx)
+				if k == len(n.Children()) - 1 {
+					hints |= NodeLastChild
+				}
+				m.view.lines[lineIndx] = m.renderNode(c, lineIndx, hints, 1)
+				hints = 0
 			}
 		}
 		if i > m.view.h - len(m.debugNodes) {
@@ -390,11 +421,10 @@ func (m Model) render() string {
 		}
 	}
 	debStart := len(m.view.lines) - len(m.debugNodes)-1
-	m.debug("total lines %d, deb lines @:%d", len(m.view.lines), debStart)
 	if m.Debug {
 		for i, n := range m.debugNodes {
 			lineIndx := debStart+i
-			m.view.lines[lineIndx] = m.renderNode(n, -1)
+			m.view.lines[lineIndx] = m.renderNode(n, -1, 0, 0)
 		}
 	}
 	return strings.Join(m.view.lines, "\n")
