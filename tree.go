@@ -232,7 +232,6 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 				p.Nodes = append(p.Nodes, n)
 			}
 		} else {
-			//fmt.Fprintf(os.Stderr, "Parent not found: %s vs %s\n", path.Clean(n.Path), path.Clean(ppath))
 			nodes = append(nodes, n)
 		}
 	}
@@ -347,7 +346,7 @@ func (m Model) render() string {
 	if cursor.Len() == 0 {
 		return ""
 	}
-	m.debug("WxH %dx%d - nc: %d\n", m.view.w, m.view.h, cursor.Len())
+	m.debug("WxH %dx%d - nc: %d", m.view.w, m.view.h, cursor.Len())
 
 	maxLines := m.view.h
 	if m.Debug {
