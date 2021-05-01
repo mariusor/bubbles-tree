@@ -170,6 +170,13 @@ func (m *Model) ToggleExpand() error {
 
 // Parent moves the whole Treeish to the parent node
 func (m *Model) Parent() error {
+	n := m.tree.at(0)
+	if n == nil {
+		return fmt.Errorf("invalid node at pos %d", m.view.pos)
+	}
+	parent := path.Dir(n.String())
+	m.t = m.t.Advance(parent)
+	m.debug("going to parent: %s", parent)
 	return nil
 }
 
@@ -183,9 +190,9 @@ func (m *Model) Advance() error {
 	//  will need to know that a node is being collapsed or expanded.
 	if pn, ok := n.(*pathNode); ok {
 		if pn.state & NodeCollapsed == NodeCollapsed {
-			//m.t = m.t.Advance(n.String())
+			m.t = m.t.Advance(n.String())
 			//m.t.Walk(1)
-			m.debug("expanding: %s", n.String())
+			m.debug("advancing to: %s", n.String())
 		}
 		pn.state ^= NodeCollapsed
 	}
@@ -282,7 +289,7 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 }
 
 func walk(m *Model) error {
-	paths, err := m.t.Walk(m.view.h - 5)
+	paths, err := m.t.Walk(m.view.h)
 	if err != nil {
 		m.err(err)
 	}
@@ -310,14 +317,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Debug = !m.Debug
 		case "enter":
 			err = m.Advance()
+			needsWalk = true
 		case "backspace":
 			err = m.Parent()
+			needsWalk = true
 		case "home":
 			err = m.Top()
+			needsWalk = true
 		case "end":
 			err = m.Bottom()
+			needsWalk = true
 		case "up", "k":
 			err = m.Prev(1)
+			needsWalk = true
 		case "down", "j":
 			err = m.Next(1)
 			needsWalk = true
@@ -330,7 +342,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "esc", "ctrl+q", "ctrl+c":
 			return m, tea.Quit
 		default:
-			m.debug("Unknown key %s", msg.String())
+			m.err(fmt.Errorf("unknown key %q", msg))
 		}
 	case tea.WindowSizeMsg:
 		m.view.h = msg.Height
@@ -342,6 +354,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if needsWalk {
 		walk(m)
+		for i := range m.view.lines {
+			m.view.lines[i] = ""
+		}
 	}
 	return m, nil
 }
@@ -370,12 +385,6 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		}
 	}
 
-	if t.State()&NodeDebug == NodeDebug {
-		style = debugStyle
-	}
-	if t.State()&NodeError == NodeError {
-		style = errStyle
-	}
 	if cur == m.view.pos + m.view.top {
 		style = highlightStyle
 	}
@@ -391,6 +400,17 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		padding += BoxDrawingsVerticalAndRight
 	}
 	padding += BoxDrawingsHorizontal
+
+	if t.State()&NodeDebug == NodeDebug {
+		style = debugStyle
+		padding = ""
+		annotation = ">"
+	}
+	if t.State()&NodeError == NodeError {
+		style = errStyle
+		padding = ""
+		annotation = "!"
+	}
 
 	return style.Width(m.view.w).Render(fmt.Sprintf("%s%2s %s", padding, annotation, name))
 }
