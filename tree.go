@@ -146,9 +146,17 @@ func (m Model) nodeAt(i int) Node {
 
 // ToggleExpand
 func (m *Model) ToggleExpand() error {
-	if pn, ok := m.nodeAt(m.view.pos).(*pathNode); ok {
+	n := m.nodeAt(m.view.pos)
+	if n == nil {
+		return fmt.Errorf("invalid node at pos %d", m.view.pos)
+	}
+	if pn, ok := n.(*pathNode); ok {
 		pn.state ^= NodeCollapsed
 	}
+	m.debug("expanding: %s  %d", n, n.State())
+	return nil
+}
+
 // Top moves the current position to the first element
 func (m *Model) Top() error {
 	m.view.pos = 0
