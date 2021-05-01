@@ -149,6 +149,19 @@ func (m *Model) ToggleExpand() error {
 	if pn, ok := m.nodeAt(m.view.pos).(*pathNode); ok {
 		pn.state ^= NodeCollapsed
 	}
+// Top moves the current position to the first element
+func (m *Model) Top() error {
+	m.view.pos = 0
+	m.view.top = 0
+	m.debug("Top: top %d, pos: %d", m.view.top, m.view.pos)
+	return nil
+}
+
+// Bottom moves the current position to the last element
+func (m *Model) Bottom() error {
+	m.view.pos = m.tree.Len()
+	m.view.top = min(m.tree.Len() - m.view.top, m.view.top)
+	m.debug("Bottom: top %d, pos: %d", m.view.top, m.view.pos)
 	return nil
 }
 
@@ -255,6 +268,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Debug = !m.Debug
 		case "enter":
 			err = m.ToggleExpand()
+		case "home":
+			err = m.Top()
+		case "end":
+			err = m.Bottom()
 		case "up", "k":
 			err = m.Prev(1)
 		case "down", "j":
