@@ -16,6 +16,8 @@ const (
 	NodeCollapsible
 	NodeError
 	NodeDebug
+
+	NodeNone = 0
 )
 
 type Treeish interface {
@@ -156,6 +158,7 @@ func (m *Model) ToggleExpand() error {
 		return fmt.Errorf("invalid node at pos %d", m.view.pos)
 	}
 	if pn, ok := n.(*pathNode); ok {
+		m.debug("it's collapsible: %s  %d", n, n.State())
 		pn.state ^= NodeCollapsed
 	}
 	m.debug("expanding: %s  %d", n, n.State())
@@ -327,11 +330,11 @@ func (m Model) renderNode(t Node, i int) string {
 	level := len(strings.Split(t.String(), "/")) - 1
 	_, name := path.Split(t.String())
 
-	if len(t.Children()) > 0 && t.State()&NodeCollapsed == NodeCollapsed {
+	if t.State()&NodeCollapsible == NodeCollapsible {
 		annotation = SquaredMinus
-	}
-	if len(t.Children()) > 0 && t.State()&NodeCollapsible == NodeCollapsible {
-		annotation = SquaredPlus
+		if t.State()&NodeCollapsed == NodeCollapsed {
+			annotation = SquaredPlus
+		}
 	}
 
 	if t.State()&NodeDebug == NodeDebug {
