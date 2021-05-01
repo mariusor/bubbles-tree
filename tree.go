@@ -115,6 +115,20 @@ func (n Nodes) Len() int {
 	return len
 }
 
+func (n Nodes) at(i int) Node {
+	for j, p := range n {
+		if j == i {
+			return p
+		}
+		if p.Children() != nil {
+			if nn := p.Children().at(i - j); nn != nil {
+				return nn
+			}
+		}
+	}
+	return nil
+}
+
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
 	tree       Nodes
@@ -135,18 +149,9 @@ func (m *Model) Children() Nodes {
 	return m.tree
 }
 
-func (m Model) nodeAt(i int) Node {
-	for j, p := range m.tree {
-		if j == i {
-			return p
-		}
-	}
-	return nil
-}
-
 // ToggleExpand
 func (m *Model) ToggleExpand() error {
-	n := m.nodeAt(m.view.pos)
+	n := m.tree.at(m.view.pos)
 	if n == nil {
 		return fmt.Errorf("invalid node at pos %d", m.view.pos)
 	}
