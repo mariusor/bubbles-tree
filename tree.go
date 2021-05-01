@@ -155,23 +155,23 @@ func (m *Model) ToggleExpand() error {
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.view.pos = clamp(m.view.pos-i, 0, min(len(m.tree), m.view.h)-1)
+	m.view.pos = clamp(m.view.pos-i, 0, m.tree.Len()-1)
 	if m.view.pos < m.view.top {
 		m.view.top = clamp(m.view.pos, 0, m.view.h)
 	}
-	m.debug("Prev: top %d, New pos: %d", m.view.top, m.view.pos)
+	m.debug("Prev: top %d, pos: %d", m.view.top, m.view.pos)
 	return nil
 }
 
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.view.pos = clamp(m.view.pos+i, 0, min(m.view.h, m.tree.Len())-1)
+	m.view.pos = clamp(m.view.pos+i, 0, m.tree.Len()-1)
 	bot := min(m.view.top+m.view.h-1, m.view.h)
 	if m.view.pos > bot {
 		m.view.top = clamp(bot+i, 0, m.view.h)
 	}
-	m.debug("Next: top %d, New pos: %d", m.view.top, m.view.pos)
+	m.debug("Next: top %d, pos: %d", m.view.top, m.view.pos)
 	return nil
 }
 
