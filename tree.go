@@ -394,7 +394,7 @@ const (
 )
 
 func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
-	style := defaultStyle
+	style := DefaultStyle
 	annotation := ""
 	padding := ""
 
@@ -405,10 +405,6 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		if t.State()&NodeCollapsed == NodeCollapsed {
 			annotation = SquaredPlus
 		}
-	}
-
-	if cur == m.view.pos + m.view.top {
-		style = highlightStyle
 	}
 
 	for i := 0; i <= depth; i++ {
@@ -424,16 +420,15 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 	padding += BoxDrawingsHorizontal
 
 	if t.State()&NodeDebug == NodeDebug {
-		style = debugStyle
-		padding = ""
-		annotation = ">"
+		style = DebugStyle
 	}
 	if t.State()&NodeError == NodeError {
-		style = errStyle
-		padding = ""
-		annotation = "!"
+		style = ErrStyle
 	}
 
+	if cur == m.view.pos + m.view.top {
+		style = style.Reverse(true)
+	}
 	return style.Width(m.view.w).Render(fmt.Sprintf("%s%2s %s", padding, annotation, name))
 }
 
