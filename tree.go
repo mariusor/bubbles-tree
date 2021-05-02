@@ -240,31 +240,32 @@ func (m *Model) Bottom() error {
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.view.pos = clamp(m.view.pos-i, 0, m.tree.Len()-1)
-	if m.view.pos < m.view.top {
-		m.view.top = clamp(m.view.pos, 0, m.view.h)
+	m.view.pos = clamp(m.view.pos-i, 0, m.tree.Len())
+	bot := min(m.view.top+m.view.h, m.view.h)
+	if m.view.pos < bot {
+		m.view.top = clamp(m.view.pos, 0, max(m.view.h, m.tree.Len()-m.view.h))
 	}
-	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.tree.Len()-1)
+	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, bot)
 	return nil
 }
 
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.view.pos = clamp(m.view.pos+i, 0, m.tree.Len()-1)
-	bot := min(m.view.top+m.view.h-1, m.view.h)
+	m.view.pos = clamp(m.view.pos+i, 0, m.tree.Len())
+	bot := min(m.view.top+m.view.h, m.view.h)
 	if m.view.pos > bot {
-		m.view.top = clamp(bot+i, 0, m.view.h)
+		m.view.top = clamp(m.view.pos, 0, max(m.view.h, m.tree.Len()-m.view.h))
 	}
-	m.debug("Next: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.tree.Len()-1)
+	m.debug("Next: top %d, pos: %d bot: %d", m.view.top, m.view.pos, bot)
 	return nil
 }
 
-type TreeMsg string
+type Msg string
 
 func (m *Model) init() tea.Msg {
 	walk(m)
-	return TreeMsg("inited")
+	return Msg("inited")
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -276,8 +277,7 @@ func findNodeByPath(nodes Nodes, path string) Node {
 		if filepath.Clean(node.String()) == filepath.Clean(path) {
 			return node
 		}
-		child := findNodeByPath(node.Children(), path)
-		if child != nil {
+		if child := findNodeByPath(node.Children(), path); child != nil {
 			return child
 		}
 	}
@@ -328,7 +328,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var err error
 	needsWalk := false
 	switch msg := msg.(type) {
-	case TreeMsg:
+	case Msg:
 		m.debug(string(msg))
 	case tea.KeyMsg:
 		// TODO(marius): we can create a data type that can be passed to the model and would function as key mapping.
@@ -352,8 +352,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			err = m.Prev(1)
 			needsWalk = true
+		case "upup", "kk":
+			err = m.Prev(2)
+			needsWalk = true
+		case "upupup", "kkk":
+			err = m.Prev(3)
+			needsWalk = true
 		case "down", "j":
 			err = m.Next(1)
+			needsWalk = true
+		case "downdown", "jj":
+			err = m.Next(2)
+			needsWalk = true
+		case "downdowndown", "jjj":
+			err = m.Next(3)
 			needsWalk = true
 		case "pgup":
 			err = m.Prev(m.view.h)
@@ -462,14 +474,17 @@ func (m Model) render() string {
 	if m.Debug {
 		maxLines -= m.debugNodes.Len()
 	}
-	//m.debug("display lines: t:%d b:%d tel:%d h:%d", m.view.top, maxLines, cursor.Len(), m.view.h)
+	m.debug("displaying lines: t:%d b:%d tot:%d h:%d", m.view.top, maxLines, cursor.Len(), m.view.h)
 	hints := NodeFirstChild
 	for i := range m.view.lines {
 		lineIndx := i+m.view.top
-		if lineIndx >= len(cursor) {
+		if lineIndx >= cursor.Len() {
 			break
 		}
 		n := cursor.at(lineIndx)
+		if n == nil {
+			continue
+		}
 		m.view.lines[i] = m.renderNode(n, lineIndx, hints, -1)
 		hints = 0
 		if len(n.Children()) > 0 {
@@ -489,7 +504,7 @@ func (m Model) render() string {
 			break
 		}
 	}
-	debStart := len(m.view.lines) - len(m.debugNodes)-1
+	debStart := len(m.view.lines) - len(m.debugNodes)
 	if m.Debug {
 		for i, n := range m.debugNodes {
 			lineIndx := debStart+i
