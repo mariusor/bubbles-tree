@@ -14,7 +14,12 @@ const RootPath = tree.Path("/tmp")
 func main() {
 	path := RootPath
 	if len(os.Args) > 1 {
-		path = tree.Path(filepath.Clean(os.Args[1]))
+		abs, err := filepath.Abs(os.Args[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s", err)
+			os.Exit(1)
+		}
+		path = tree.Path(abs)
 	}
 	m := tree.New(path)
 	m.Debug = true
