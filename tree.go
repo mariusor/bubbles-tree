@@ -393,12 +393,26 @@ const (
 	NodeLastChild
 )
 
+func (m Model) renderDebugNode(t Node) string {
+	style := DefaultStyle
+	annotation := ""
+
+	if t.State()&NodeDebug == NodeDebug {
+		style = DebugStyle
+		annotation = ">"
+	}
+	if t.State()&NodeError == NodeError {
+		style = ErrStyle
+		annotation = "!"
+	}
+
+	return style.Width(m.view.w).Render(fmt.Sprintf("%2s %s", annotation, t.String()))
+}
+
 func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 	style := DefaultStyle
 	annotation := ""
 	padding := ""
-
-	_, name := path.Split(t.String())
 
 	if t.State()&NodeCollapsible == NodeCollapsible {
 		annotation = SquaredMinus
@@ -429,6 +443,8 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 	if cur == m.view.pos + m.view.top {
 		style = style.Reverse(true)
 	}
+
+	_, name := path.Split(t.String())
 	return style.Width(m.view.w).Render(fmt.Sprintf("%s%2s %s", padding, annotation, name))
 }
 
@@ -477,7 +493,7 @@ func (m Model) render() string {
 	if m.Debug {
 		for i, n := range m.debugNodes {
 			lineIndx := debStart+i
-			m.view.lines[lineIndx] = m.renderNode(n, -1, 0, 0)
+			m.view.lines[lineIndx] = m.renderDebugNode(n)
 		}
 	}
 	return strings.Join(m.view.lines, "\n")
