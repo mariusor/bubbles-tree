@@ -9,10 +9,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// NodeState is used for passing information from a Treeish element to the view itself
 type NodeState int
 
 const (
+	// NodeCollapsed hints that the current node is collapsed
 	NodeCollapsed = 1 << iota
+	// NodeCollapsible hints that the current node can be collapsed
 	NodeCollapsible
 	NodeError
 	NodeDebug
@@ -20,13 +23,20 @@ const (
 	NodeNone = 0
 )
 
-// TODO(marius): we need to check if the parameter to Treeish.Advance() should be a Node,
-//   probably not, as it is internal to this package
-
 type Treeish interface {
-	Advance(string) Treeish
-	Walk(int) ([]string, error)
+	// Advance moves the Treeish to a new received path,
+	// this can return a new Treeish instance at the new path, or perform some other function
+	// for the cases where the path doesn't correspond to a Treeish object.
+	// Specifically in the case of the filepath Treeish:
+	// If a passed path parameter corresponds to a folder, it will return a new Treeish object at the new path
+	// If the passed path parameter corresponds to a file, it returns a nil Treeish but can execute something else.
+	Advance(string) (Treeish, error)
+	// State returns the NodeState for the received path parameter
+	// This is used when rendering the path in the tree view
 	State(string) (NodeState, error)
+
+	// Walk loads the elements of current Treeish and returns them as a flat list
+	Walk(int) ([]string, error)
 }
 
 type debugNode struct {
@@ -175,8 +185,14 @@ func (m *Model) Parent() error {
 		return fmt.Errorf("invalid node at pos %d", m.view.pos)
 	}
 	parent := path.Dir(n.String())
-	m.t = m.t.Advance(parent)
-	m.debug("going to parent: %s", parent)
+	t, err := m.t.Advance(parent)
+	if err != nil {
+		return err
+	}
+	if m.t != nil {
+		m.debug("going to parent: %s", parent)
+		m.t = t
+	}
 	return nil
 }
 
@@ -187,12 +203,18 @@ func (m *Model) Advance() error {
 		return fmt.Errorf("invalid node at pos %d", m.view.pos)
 	}
 	// TODO(marius): this behaviour needs to be moved to the Treeish interface, as all implementations
-	//  will need to know that a node is being collapsed or expanded.
+	//   will need to know that a node is being collapsed or expanded.
 	if pn, ok := n.(*pathNode); ok {
 		if pn.state & NodeCollapsed == NodeCollapsed {
-			m.t = m.t.Advance(n.String())
-			//m.t.Walk(1)
-			m.debug("advancing to: %s", n.String())
+			t, err := m.t.Advance(n.String())
+			if err != nil {
+				return err
+			}
+			if m.t != nil {
+				m.debug("advancing to: %s", n.String())
+				m.t = t
+				m.view.pos = 0
+			}
 		}
 		pn.state ^= NodeCollapsed
 	}
@@ -222,7 +244,7 @@ func (m *Model) Prev(i int) error {
 	if m.view.pos < m.view.top {
 		m.view.top = clamp(m.view.pos, 0, m.view.h)
 	}
-	m.debug("Prev: top %d, pos: %d", m.view.top, m.view.pos)
+	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.tree.Len()-1)
 	return nil
 }
 
@@ -234,7 +256,7 @@ func (m *Model) Next(i int) error {
 	if m.view.pos > bot {
 		m.view.top = clamp(bot+i, 0, m.view.h)
 	}
-	m.debug("Next: top %d, pos: %d", m.view.top, m.view.pos)
+	m.debug("Next: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.tree.Len()-1)
 	return nil
 }
 
