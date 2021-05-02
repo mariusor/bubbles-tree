@@ -22,8 +22,15 @@ func (p Path) State(file string) (NodeState, error) {
 }
 
 // Advance returns a new Treeish object based on the new path
-func (p Path) Advance(file string) Treeish {
-	return Path(file)
+func (p Path) Advance(file string) (Treeish, error) {
+	fi, err := os.Stat(file)
+	if err != nil {
+		return nil, err
+	}
+	if fi.IsDir() {
+		return Path(file), nil
+	}
+	return nil, nil
 }
 
 // Walk will load cnt element from the current path
