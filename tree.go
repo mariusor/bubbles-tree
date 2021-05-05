@@ -89,7 +89,13 @@ type pathNode struct {
 }
 
 func (n pathNode) GoString() string {
-	return fmt.Sprintf("Path: %s [%d]\n", n.Path, len(n.Children()))
+	s := strings.Builder{}
+	nodeS := fmt.Sprintf("Path: %s [%d]\n", n.Path, len(n.Children()))
+	s.WriteString(nodeS)
+	if len(n.Children()) > 0 {
+		s.WriteString(fmt.Sprintf("%#v\n", n.Children()))
+	}
+	return s.String()
 }
 
 func (n pathNode) String() string {
@@ -115,6 +121,14 @@ type viewport struct {
 	top, left int
 	pos       int
 	lines     []string
+}
+
+func (m *Model) bottom() int {
+	bot := min(m.view.top+m.view.h, m.view.h) - 1
+	if m.Debug {
+		return bot - len(m.debugNodes)
+	}
+	return bot
 }
 
 type Nodes []Node
@@ -146,9 +160,8 @@ func (n Nodes) at(i int) Node {
 
 func (n Nodes) GoString() string {
 	s := strings.Builder{}
-	s.WriteString(fmt.Sprintf("Nodes(%d)\n", len(n)))
 	for i, nn := range n {
-		s.WriteString(fmt.Sprintf("%d => %v\n",i, nn))
+		s.WriteString(fmt.Sprintf(" %d => %#v\n", i, nn))
 	}
 	return s.String()
 }
@@ -205,7 +218,7 @@ func (m *Model) Advance() error {
 	// TODO(marius): this behaviour needs to be moved to the Treeish interface, as all implementations
 	//   will need to know that a node is being collapsed or expanded.
 	if pn, ok := n.(*pathNode); ok {
-		if pn.state & NodeCollapsed == NodeCollapsed {
+		if pn.state&NodeCollapsed == NodeCollapsed {
 			t, err := m.t.Advance(n.String())
 			if err != nil {
 				return err
@@ -231,33 +244,39 @@ func (m *Model) Top() error {
 
 // Bottom moves the current position to the last element
 func (m *Model) Bottom() error {
-	m.view.pos = m.tree.Len()
-	m.view.top = min(m.tree.Len() - m.view.top, m.view.top)
+	m.view.pos = visibleLines(m.tree)
+	m.view.top = min(visibleLines(m.tree)-m.view.top, m.view.top)
 	m.debug("Bottom: top %d, pos: %d", m.view.top, m.view.pos)
 	return nil
+}
+
+func visibleLines(n Nodes) int {
+	count := len(n)
+	for _, nn := range n {
+		count += len(nn.Children()) - 1
+	}
+	return count
 }
 
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.view.pos = clamp(m.view.pos-i, 0, m.tree.Len())
-	bot := min(m.view.top+m.view.h, m.view.h)
-	if m.view.pos < bot {
-		m.view.top = clamp(m.view.pos, 0, max(m.view.h, m.tree.Len()-m.view.h))
+	m.view.pos = clamp(m.view.pos-i, 0, visibleLines(m.tree))
+	if m.view.pos < m.bottom() {
+		m.view.top = clamp(m.view.top-i, 0, max(m.view.h, visibleLines(m.tree)-m.view.h)-2)
 	}
-	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, bot)
+	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
 	return nil
 }
 
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.view.pos = clamp(m.view.pos+i, 0, m.tree.Len())
-	bot := min(m.view.top+m.view.h, m.view.h)
-	if m.view.pos > bot {
-		m.view.top = clamp(m.view.pos, 0, max(m.view.h, m.tree.Len()-m.view.h))
+	m.view.pos = clamp(m.view.pos+i, 0, visibleLines(m.tree))
+	if m.view.pos > m.bottom() {
+		m.view.top = clamp(m.view.top+i, 0, max(m.view.h, visibleLines(m.tree)-m.view.h)-2)
 	}
-	m.debug("Next: top %d, pos: %d bot: %d", m.view.top, m.view.pos, bot)
+	m.debug("Next: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
 	return nil
 }
 
@@ -433,12 +452,12 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		}
 	}
 
-	for i := 0; i <= depth; i++ {
-		padding += " "
+	for i := 0; i < depth; i++ {
+		padding += "   " // 3 is the length of a tree opener
 	}
-	if nodeHints & NodeFirstChild == NodeFirstChild {
+	if nodeHints&NodeFirstChild == NodeFirstChild {
 		padding += BoxDrawingsUpAndRight
-	} else if nodeHints & NodeLastChild == NodeLastChild {
+	} else if nodeHints&NodeLastChild == NodeLastChild {
 		padding += BoxDrawingsUpAndRight
 	} else {
 		padding += BoxDrawingsVerticalAndRight
@@ -452,7 +471,7 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		style = ErrStyle
 	}
 
-	if cur == m.view.pos + m.view.top {
+	if cur == m.view.pos+m.view.top {
 		style = style.Reverse(true)
 	}
 
@@ -474,10 +493,10 @@ func (m Model) render() string {
 	if m.Debug {
 		maxLines -= m.debugNodes.Len()
 	}
-	m.debug("displaying lines: t:%d b:%d tot:%d h:%d", m.view.top, maxLines, cursor.Len(), m.view.h)
+	m.debug("displaying lines: t:%d b:%d tot:%d h:%d", m.view.top, maxLines, visibleLines(cursor), m.view.h)
 	hints := NodeFirstChild
 	for i := range m.view.lines {
-		lineIndx := i+m.view.top
+		lineIndx := i + m.view.top
 		if lineIndx >= cursor.Len() {
 			break
 		}
@@ -485,29 +504,30 @@ func (m Model) render() string {
 		if n == nil {
 			continue
 		}
-		m.view.lines[i] = m.renderNode(n, lineIndx, hints, -1)
+		m.view.lines[i] = m.renderNode(n, lineIndx, hints, 0)
 		hints = 0
-		if len(n.Children()) > 0 {
+
+		if childLen := len(n.Children()); childLen > 0 {
 			for k, c := range n.Children() {
-				lineIndx = i+k+1
+				lineIndx = i + k + 1
 				if lineIndx >= maxLines {
 					break
 				}
-				if k == len(n.Children()) - 1 {
+				if k == childLen {
 					hints |= NodeLastChild
 				}
 				m.view.lines[lineIndx] = m.renderNode(c, lineIndx, hints, 1)
 				hints = 0
 			}
 		}
-		if i > m.view.h - len(m.debugNodes) {
+		if i > m.view.h-visibleLines(m.debugNodes) {
 			break
 		}
 	}
 	debStart := len(m.view.lines) - len(m.debugNodes)
 	if m.Debug {
 		for i, n := range m.debugNodes {
-			lineIndx := debStart+i
+			lineIndx := debStart + i
 			m.view.lines[lineIndx] = m.renderDebugNode(n)
 		}
 	}
