@@ -17,6 +17,8 @@ const (
 	NodeCollapsed = 1 << iota
 	// NodeCollapsible hints that the current node can be collapsed
 	NodeCollapsible
+	// NodeVisible hints that the current node is ready to be displayed
+	NodeVisible
 	NodeError
 	NodeDebug
 
@@ -54,6 +56,7 @@ func (m *Model) debug(s string, params ...interface{}) {
 	}
 	m.debugNodes = append(m.debugNodes, debug(fmt.Sprintf(s, params...)))
 }
+
 func (m *Model) err(err error) {
 	if m.debugNodes == nil {
 		m.debugNodes = make([]Node, 0)
@@ -262,7 +265,7 @@ func visibleLines(n Nodes) int {
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
 	m.view.pos = clamp(m.view.pos-i, 0, visibleLines(m.tree))
-	if m.view.pos < m.bottom() {
+	if m.view.pos < m.view.top {
 		m.view.top = clamp(m.view.top-i, 0, max(m.view.h, visibleLines(m.tree)-m.view.h)-2)
 	}
 	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
