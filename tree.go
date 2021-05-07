@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -329,6 +330,17 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 			nodes = append(nodes, n)
 		}
 	}
+	sort.Slice(nodes, func(i, j int) bool {
+		h1 := nodes[i].State()
+		h2 := nodes[j].State()
+		if h1&NodeCollapsible == NodeCollapsible {
+			if h2&NodeCollapsible == NodeCollapsible {
+				return nodes[i].String() < nodes[j].String()
+			}
+			return true
+		}
+		return false
+	})
 	return nodes, nil
 }
 
