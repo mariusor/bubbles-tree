@@ -13,6 +13,12 @@ import (
 // NodeState is used for passing information from a Treeish element to the view itself
 type NodeState int
 
+//func init() {
+//	fmt.Fprintf(os.Stderr, "Collapsed %d\n", NodeCollapsed)
+//	fmt.Fprintf(os.Stderr, "Collapsible %d\n", NodeCollapsible)
+//	fmt.Fprintf(os.Stderr, "Visible %d\n", NodeVisible)
+//}
+
 const (
 	// NodeCollapsed hints that the current node is collapsed
 	NodeCollapsed = 1 << iota
@@ -249,7 +255,7 @@ func (m *Model) Top() error {
 // Bottom moves the current position to the last element
 func (m *Model) Bottom() error {
 	m.view.pos = visibleLines(m.tree)
-	m.view.top = min(visibleLines(m.tree)-m.view.top, m.view.top)
+	m.view.top = m.view.pos - m.view.h
 	m.debug("Bottom: top %d, pos: %d", m.view.top, m.view.pos)
 	return nil
 }
@@ -313,10 +319,16 @@ func findNodeByPath(nodes Nodes, path string) Node {
 
 func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 	flatNodes := make(Nodes, len(paths))
+	top := paths[0]
+	topCnt := len(strings.Split(top, "/"))
 	for i, p := range paths {
 		st, _ := t.State(p)
+		cnt := len(strings.Split(p, "/"))
 		if st&NodeCollapsible == NodeCollapsible {
 			st |= NodeCollapsed
+		}
+		if cnt-topCnt <= 1 {
+			st |= NodeVisible
 		}
 		flatNodes[i] = &pathNode{
 			Path:  p,
@@ -471,7 +483,7 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		}
 	}
 
-	for i := 0; i < depth; i++ {
+	for i := 0; i <= depth; i++ {
 		padding += "   " // 3 is the length of a tree opener
 	}
 	if nodeHints&NodeFirstChild == NodeFirstChild {
@@ -483,10 +495,11 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 	}
 	padding += BoxDrawingsHorizontal
 
-	if t.State()&NodeDebug == NodeDebug {
+	st := t.State()
+	if st&NodeDebug == NodeDebug {
 		style = DebugStyle
 	}
-	if t.State()&NodeError == NodeError {
+	if st&NodeError == NodeError {
 		style = ErrStyle
 	}
 
@@ -506,7 +519,8 @@ func (m Model) render() string {
 	if cursor.Len() == 0 {
 		return ""
 	}
-	//m.debug("WxH %dx%d - nc: %d", m.view.w, m.view.h, cursor.Len())
+
+	topDepth := len(strings.Split(m.tree.at(0).String(), "/"))
 
 	maxLines := m.view.h
 	if m.Debug {
@@ -523,11 +537,22 @@ func (m Model) render() string {
 		if n == nil {
 			continue
 		}
-		m.view.lines[i] = m.renderNode(n, lineIndx, hints, 0)
-		hints = 0
 
-		if childLen := len(n.Children()); childLen > 0 {
+		visible := n.State()&NodeVisible == NodeVisible
+		collapsed := n.State()&NodeCollapsed == NodeCollapsed
+
+		if !visible {
+			continue
+		}
+		depth := len(strings.Split(n.String(), "/")) - topDepth
+		m.view.lines[i] = m.renderNode(n, lineIndx, hints, depth)
+		hints = 0
+		if childLen := visibleLines(n.Children()); childLen > 0 && !collapsed {
 			for k, c := range n.Children() {
+				visible := c.State()&NodeVisible == NodeVisible
+				if !visible {
+					continue
+				}
 				lineIndx = i + k + 1
 				if lineIndx >= maxLines {
 					break
@@ -535,7 +560,9 @@ func (m Model) render() string {
 				if k == childLen {
 					hints |= NodeLastChild
 				}
-				m.view.lines[lineIndx] = m.renderNode(c, lineIndx, hints, 1)
+
+				depth := len(strings.Split(c.String(), "/")) - topDepth
+				m.view.lines[lineIndx] = m.renderNode(c, lineIndx, hints, depth)
 				hints = 0
 			}
 		}
