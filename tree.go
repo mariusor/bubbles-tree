@@ -255,9 +255,13 @@ func (m *Model) Bottom() error {
 }
 
 func visibleLines(n Nodes) int {
-	count := len(n)
+	count := 0
 	for _, nn := range n {
-		count += len(nn.Children()) - 1
+		visible := nn.State()&NodeVisible == NodeVisible
+		if visible {
+			count++
+		}
+		count += visibleLines(nn.Children())
 	}
 	return count
 }
