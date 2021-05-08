@@ -156,7 +156,7 @@ func (n Nodes) Len() int {
 
 func (n Nodes) at(i int) Node {
 	for j, p := range n {
-		if j == i {
+		if j == i && p.State()&NodeVisible == NodeVisible {
 			return p
 		}
 		if p.Children() != nil {
