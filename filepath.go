@@ -37,6 +37,9 @@ func (p Path) Walk(cnt int) ([]string, error) {
 	all := make([]string, 0)
 	pp := filepath.Clean(string(p))
 	err := filepath.WalkDir(pp, func(file string, fi fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 		parent := filepath.Dir(file)
 		grandParent := filepath.Dir(parent)
 		if file != pp && parent != pp && grandParent != pp {
