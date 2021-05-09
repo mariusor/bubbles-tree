@@ -335,6 +335,16 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 			state: st,
 		}
 	}
+	sort.Slice(flatNodes, func(i, j int) bool {
+		n1 := flatNodes[i]
+		n2 := flatNodes[j]
+		v1 := n1.State()&NodeCollapsible == NodeCollapsible
+		v2 := n2.State()&NodeCollapsible == NodeCollapsible
+		if v1 == v2 {
+			return n1.String() < n2.String()
+		}
+		return v1 && !v2
+	})
 	nodes := make(Nodes, 0)
 	for _, n := range flatNodes {
 		ppath, _ := path.Split(n.String())
@@ -346,17 +356,6 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 			nodes = append(nodes, n)
 		}
 	}
-	sort.Slice(nodes, func(i, j int) bool {
-		h1 := nodes[i].State()
-		h2 := nodes[j].State()
-		if h1&NodeCollapsible == NodeCollapsible {
-			if h2&NodeCollapsible == NodeCollapsible {
-				return nodes[i].String() < nodes[j].String()
-			}
-			return true
-		}
-		return false
-	})
 	return nodes, nil
 }
 
