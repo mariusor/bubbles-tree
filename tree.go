@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // NodeState is used for passing information from a Treeish element to the view itself
@@ -485,9 +486,9 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 	for i := 0; i <= depth; i++ {
 		padding += "   " // 3 is the length of a tree opener
 	}
-	if nodeHints&NodeFirstChild == NodeFirstChild {
+	if nodeHints&NodeLastChild == NodeLastChild {
 		padding += BoxDrawingsUpAndRight
-	} else if nodeHints&NodeLastChild == NodeLastChild {
+	} else if nodeHints&NodeFirstChild == NodeFirstChild {
 		padding += BoxDrawingsUpAndRight
 	} else {
 		padding += BoxDrawingsVerticalAndRight
@@ -502,12 +503,45 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		style = ErrStyle
 	}
 
-	if cur == m.view.pos {
-		style = style.Reverse(true)
-	}
-
 	_, name := path.Split(t.String())
 	return style.Width(m.view.w).Render(fmt.Sprintf("%s%2s %s", padding, annotation, name))
+}
+
+func renderNodes(m Model, nl Nodes, topDepth, maxLines int) []string {
+	rendered := make([]string, 0)
+
+	nlLen := len(nl)
+	for i, n := range nl {
+		if len(rendered) >= maxLines {
+			break
+		}
+		visible := n.State()&NodeVisible == NodeVisible
+		if !visible {
+			continue
+		}
+		firstInTree := m.tree.at(0) == n
+
+		hints := 0
+		if i == 0 && firstInTree {
+			hints = NodeFirstChild
+		} else if i+1 == nlLen {
+			hints |= NodeLastChild
+		}
+
+		depth := len(strings.Split(n.String(), "/")) - topDepth
+		currentRenderedLines := len(rendered)
+		rendered = append(rendered, m.renderNode(n, 0, hints, depth))
+
+		collapsed := n.State()&NodeCollapsed == NodeCollapsed
+		if childLen := visibleLines(n.Children()); childLen > 0 && !collapsed {
+			renderedChildren := renderNodes(m, n.Children(), topDepth, maxLines-currentRenderedLines)
+			rendered = append(rendered, renderedChildren...)
+		}
+	}
+	if maxLines < len(rendered) {
+		rendered = rendered[0:maxLines]
+	}
+	return rendered
 }
 
 func (m Model) render() string {
@@ -526,51 +560,17 @@ func (m Model) render() string {
 		maxLines -= m.debugNodes.Len()
 	}
 	m.debug("displaying lines: t:%d b:%d tot:%d h:%d", m.view.top, maxLines, visibleLines(cursor), m.view.h)
-	hints := NodeFirstChild
-	for i := range m.view.lines {
-		lineIndx := i + m.view.top
-		if lineIndx >= cursor.Len() {
-			break
-		}
-		n := cursor.at(lineIndx)
-		if n == nil {
-			continue
-		}
 
-		visible := n.State()&NodeVisible == NodeVisible
-		collapsed := n.State()&NodeCollapsed == NodeCollapsed
-
-		if !visible {
-			continue
+	rendered := renderNodes(m, cursor, topDepth, maxLines)
+	for i, l := range rendered {
+		if i == m.view.pos {
+			l = lipgloss.Style{}.Reverse(true).Render(l)
 		}
-		depth := len(strings.Split(n.String(), "/")) - topDepth
-		m.view.lines[i] = m.renderNode(n, lineIndx, hints, depth)
-		hints = 0
-		if childLen := visibleLines(n.Children()); childLen > 0 && !collapsed {
-			for k, c := range n.Children() {
-				visible := c.State()&NodeVisible == NodeVisible
-				if !visible {
-					continue
-				}
-				lineIndx = i + k + 1
-				if lineIndx >= maxLines {
-					break
-				}
-				if k == childLen {
-					hints |= NodeLastChild
-				}
-
-				depth := len(strings.Split(c.String(), "/")) - topDepth
-				m.view.lines[lineIndx] = m.renderNode(c, lineIndx, hints, depth)
-				hints = 0
-			}
-		}
-		if i > m.view.h-visibleLines(m.debugNodes) {
-			break
-		}
+		m.view.lines[i] = l
 	}
+
 	debStart := len(m.view.lines) - len(m.debugNodes)
-	if m.Debug {
+	if m.Debug && debStart >= 0 {
 		for i, n := range m.debugNodes {
 			lineIndx := debStart + i
 			m.view.lines[lineIndx] = m.renderDebugNode(n)
