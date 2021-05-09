@@ -134,12 +134,27 @@ type viewport struct {
 	lines     []string
 }
 
-func (m *Model) bottom() int {
-	bot := min(m.view.top+m.view.h, m.view.h) - 1
-	if m.Debug {
-		return bot - len(m.debugNodes)
+func (v viewport) bottom() int {
+	return min(v.top+v.h, v.h) - 1
+}
+
+func (v *viewport) setPos(pos, maxL int) {
+	diff := v.pos - pos
+	if diff == 0 {
+		return
 	}
-	return bot
+	v.pos = clamp(pos, 0, maxL)
+	if diff < 0 {
+		// next
+		if v.pos > v.bottom() {
+			v.top = clamp(v.top-diff, 0, max(v.h, maxL-v.h)-1)
+		}
+	} else {
+		// prev
+		if v.pos < v.top {
+			v.top = clamp(v.top-diff, 0, max(v.h, maxL-v.h)-1)
+		}
+	}
 }
 
 type Nodes []Node
@@ -191,6 +206,14 @@ func New(t Treeish) *Model {
 	m := new(Model)
 	m.t = t
 	return m
+}
+
+func (m *Model) bottom() int {
+	bot := m.view.bottom()
+	if m.Debug {
+		return bot - len(m.debugNodes)
+	}
+	return bot
 }
 
 func (m *Model) Children() Nodes {
@@ -276,10 +299,7 @@ func visibleLines(n Nodes) int {
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.view.pos = clamp(m.view.pos-i, 0, visibleLines(m.tree)-1)
-	if m.view.pos < m.view.top {
-		m.view.top = clamp(m.view.top-i, 0, max(m.view.h, visibleLines(m.tree)))
-	}
+	m.view.setPos(m.view.pos-i, visibleLines(m.tree)-1)
 	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
 	return nil
 }
@@ -287,10 +307,7 @@ func (m *Model) Prev(i int) error {
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.view.pos = clamp(m.view.pos+i, 0, visibleLines(m.tree)-1)
-	if m.view.pos > m.view.top+m.bottom() {
-		m.view.top = clamp(m.view.top+i, 0, max(m.view.h, visibleLines(m.tree)))
-	}
+	m.view.setPos(m.view.pos+i, visibleLines(m.tree)-1)
 	m.debug("Next: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
 	return nil
 }
@@ -299,7 +316,7 @@ type Msg string
 
 func (m *Model) init() tea.Msg {
 	walk(m)
-	return Msg("inited")
+	return Msg("initialized")
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -325,7 +342,7 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 	for i, p := range paths {
 		st, _ := t.State(p)
 		cnt := len(strings.Split(p, "/"))
-		if st&NodeCollapsible == NodeCollapsible {
+		if st&NodeCollapsible == NodeCollapsible && i != 0 {
 			st |= NodeCollapsed
 		}
 		if cnt-topCnt <= 1 {
@@ -504,42 +521,44 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 	}
 
 	_, name := path.Split(t.String())
+	if name == "" {
+		return ""
+	}
 	return style.Width(m.view.w).Render(fmt.Sprintf("%s%2s %s", padding, annotation, name))
 }
 
-func renderNodes(m Model, nl Nodes, topDepth, maxLines int) []string {
+func renderNodes(m Model, nl Nodes) []string {
 	rendered := make([]string, 0)
 
 	nlLen := len(nl)
+	firstInTree := m.tree.at(0)
+	topDepth := len(strings.Split(firstInTree.String(), "/"))
 	for i, n := range nl {
-		if len(rendered) >= maxLines {
-			break
-		}
 		visible := n.State()&NodeVisible == NodeVisible
 		if !visible {
 			continue
 		}
-		firstInTree := m.tree.at(0) == n
+		isFirst := firstInTree == n
 
 		hints := 0
-		if i == 0 && firstInTree {
+		if i == 0 && isFirst {
 			hints = NodeFirstChild
 		} else if i+1 == nlLen {
 			hints |= NodeLastChild
 		}
 
 		depth := len(strings.Split(n.String(), "/")) - topDepth
-		currentRenderedLines := len(rendered)
-		rendered = append(rendered, m.renderNode(n, 0, hints, depth))
+		out := m.renderNode(n, 0, hints, depth)
+		if len(out) > 0 {
+			rendered = append(rendered, out)
+		}
 
-		collapsed := n.State()&NodeCollapsed == NodeCollapsed
-		if childLen := visibleLines(n.Children()); childLen > 0 && !collapsed {
-			renderedChildren := renderNodes(m, n.Children(), topDepth, maxLines-currentRenderedLines)
+		if collapsed := n.State()&NodeCollapsed == NodeCollapsed; !collapsed {
+			if childLen := visibleLines(n.Children()); childLen > 0 {
+				renderedChildren := renderNodes(m, n.Children())
 			rendered = append(rendered, renderedChildren...)
 		}
 	}
-	if maxLines < len(rendered) {
-		rendered = rendered[0:maxLines]
 	}
 	return rendered
 }
@@ -553,16 +572,24 @@ func (m Model) render() string {
 		return ""
 	}
 
-	topDepth := len(strings.Split(m.tree.at(0).String(), "/"))
 
 	maxLines := m.view.h
 	if m.Debug {
 		maxLines -= m.debugNodes.Len()
 	}
-	m.debug("displaying lines: t:%d b:%d tot:%d h:%d", m.view.top, maxLines, visibleLines(cursor), m.view.h)
 
-	rendered := renderNodes(m, cursor, topDepth, maxLines)
-	for i, l := range rendered {
+	rendered := renderNodes(m, cursor)
+
+	top := 0
+	end := len(rendered)
+	if m.view.top < len(rendered) {
+		top = m.view.top
+	}
+	if maxLines+top < end {
+		end = maxLines + top
+	}
+	m.debug("Displaying: t:%d cur: %d vis:%d h:%d ren:%d", top, m.view.pos, visibleLines(cursor), end, len(rendered))
+	for i, l := range rendered[top:end] {
 		if i == m.view.pos {
 			l = lipgloss.Style{}.Reverse(true).Render(l)
 		}
