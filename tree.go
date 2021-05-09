@@ -135,25 +135,20 @@ type viewport struct {
 }
 
 func (v viewport) bottom() int {
-	return min(v.top+v.h, v.h) - 1
+	return min(v.top+v.h, v.h)
 }
 
-func (v *viewport) setPos(pos, maxL int) {
+func (v *viewport) setPos(pos, maxL, bot int) {
 	diff := v.pos - pos
-	if diff == 0 {
-		return
-	}
+	bot -= 2
 	v.pos = clamp(pos, 0, maxL)
-	if diff < 0 {
-		// next
-		if v.pos > v.bottom() {
-			v.top = clamp(v.top-diff, 0, max(v.h, maxL-v.h)-1)
-		}
-	} else {
-		// prev
-		if v.pos < v.top {
-			v.top = clamp(v.top-diff, 0, max(v.h, maxL-v.h)-1)
-		}
+	// prev
+	if v.pos < v.top {
+		v.top = clamp(v.top+diff, 0, max(v.h, maxL-v.h)-1)
+	}
+	// next
+	if v.pos > bot {
+		v.top = clamp(v.top-diff, 0, max(v.h, maxL-v.h)-1)
 	}
 }
 
@@ -278,7 +273,7 @@ func (m *Model) Top() error {
 
 // Bottom moves the current position to the last element
 func (m *Model) Bottom() error {
-	m.view.pos = visibleLines(m.tree)
+	m.view.pos = visibleLines(m.tree) - 1
 	m.view.top = m.view.pos - m.view.h
 	m.debug("Bottom: top %d, pos: %d", m.view.top, m.view.pos)
 	return nil
@@ -299,16 +294,16 @@ func visibleLines(n Nodes) int {
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.view.setPos(m.view.pos-i, visibleLines(m.tree)-1)
-	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
+	m.view.setPos(m.view.pos-i, visibleLines(m.tree), m.bottom())
+	m.debug("Next: pos: %d top %d height: %d", m.view.pos, m.view.top, m.bottom())
 	return nil
 }
 
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.view.setPos(m.view.pos+i, visibleLines(m.tree)-1)
-	m.debug("Next: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
+	m.view.setPos(m.view.pos+i, visibleLines(m.tree), m.bottom())
+	m.debug("Next: pos: %d top %d height: %d", m.view.pos, m.view.top, m.bottom())
 	return nil
 }
 
@@ -533,6 +528,7 @@ func renderNodes(m Model, nl Nodes) []string {
 	nlLen := len(nl)
 	firstInTree := m.tree.at(0)
 	topDepth := len(strings.Split(firstInTree.String(), "/"))
+
 	for i, n := range nl {
 		visible := n.State()&NodeVisible == NodeVisible
 		if !visible {
@@ -556,10 +552,11 @@ func renderNodes(m Model, nl Nodes) []string {
 		if collapsed := n.State()&NodeCollapsed == NodeCollapsed; !collapsed {
 			if childLen := visibleLines(n.Children()); childLen > 0 {
 				renderedChildren := renderNodes(m, n.Children())
-			rendered = append(rendered, renderedChildren...)
+				rendered = append(rendered, renderedChildren...)
+			}
 		}
 	}
-	}
+
 	return rendered
 }
 
@@ -572,12 +569,11 @@ func (m Model) render() string {
 		return ""
 	}
 
-
-	maxLines := m.view.h
+	maxLines := m.bottom()
 	if m.Debug {
 		maxLines -= m.debugNodes.Len()
 	}
-
+	// NOTE(marius): here we're rendering more lines than we strictly need
 	rendered := renderNodes(m, cursor)
 
 	top := 0
@@ -588,8 +584,9 @@ func (m Model) render() string {
 	if maxLines+top < end {
 		end = maxLines + top
 	}
-	m.debug("Displaying: t:%d cur: %d vis:%d h:%d ren:%d", top, m.view.pos, visibleLines(cursor), end, len(rendered))
-	for i, l := range rendered[top:end] {
+	cropped := rendered[top:end]
+	m.debug("Displaying: cur:%d top:%d bot:%d ren:%d vis:%d:%d", m.view.pos, top, end, len(rendered), len(cropped), visibleLines(cursor))
+	for i, l := range cropped {
 		if i == m.view.pos {
 			l = lipgloss.Style{}.Reverse(true).Render(l)
 		}
