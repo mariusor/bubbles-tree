@@ -275,9 +275,9 @@ func visibleLines(n Nodes) int {
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.view.pos = clamp(m.view.pos-i, 0, visibleLines(m.tree))
+	m.view.pos = clamp(m.view.pos-i, 0, visibleLines(m.tree)-1)
 	if m.view.pos < m.view.top {
-		m.view.top = clamp(m.view.top-i, 0, max(m.view.h, visibleLines(m.tree)-m.view.h)-2)
+		m.view.top = clamp(m.view.top-i, 0, max(m.view.h, visibleLines(m.tree)))
 	}
 	m.debug("Prev: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
 	return nil
@@ -286,9 +286,9 @@ func (m *Model) Prev(i int) error {
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.view.pos = clamp(m.view.pos+i, 0, visibleLines(m.tree))
-	if m.view.pos > m.bottom() {
-		m.view.top = clamp(m.view.top+i, 0, max(m.view.h, visibleLines(m.tree)-m.view.h)-2)
+	m.view.pos = clamp(m.view.pos+i, 0, visibleLines(m.tree)-1)
+	if m.view.pos > m.view.top+m.bottom() {
+		m.view.top = clamp(m.view.top+i, 0, max(m.view.h, visibleLines(m.tree)))
 	}
 	m.debug("Next: top %d, pos: %d bot: %d", m.view.top, m.view.pos, m.bottom())
 	return nil
