@@ -502,7 +502,7 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		style = ErrStyle
 	}
 
-	if cur == m.view.pos+m.view.top {
+	if cur == m.view.pos {
 		style = style.Reverse(true)
 	}
 
