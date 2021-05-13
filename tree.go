@@ -197,10 +197,8 @@ type Model struct {
 	view viewport
 }
 
-func New(t Treeish) *Model {
-	m := new(Model)
-	m.t = t
-	return m
+func New(t Treeish) Model {
+	return Model{t: t}
 }
 
 func (m *Model) bottom() int {
@@ -308,12 +306,12 @@ func (m *Model) Next(i int) error {
 
 type Msg string
 
-func (m *Model) init() tea.Msg {
-	walk(m)
+func (m Model) init() tea.Msg {
+	walk(&m)
 	return Msg("initialized")
 }
 
-func (m *Model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return m.init
 }
 
@@ -384,7 +382,7 @@ func walk(m *Model) error {
 }
 
 // Update is the Tea update function which binds keystrokes to pagination.
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.debugNodes = m.debugNodes[:0]
 	var err error
 	needsWalk := false
@@ -428,6 +426,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "pgdown":
 			err = m.Next(m.view.h - 1)
 			needsWalk = true
+		case "o":
+			err = m.ToggleExpand()
+			needsWalk = true
 		case "q", "esc", "ctrl+q", "ctrl+c":
 			return m, tea.Quit
 		default:
@@ -442,7 +443,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err(err)
 	}
 	if needsWalk {
-		walk(m)
+		walk(&m)
 		for i := range m.view.lines {
 			m.view.lines[i] = ""
 		}
