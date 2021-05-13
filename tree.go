@@ -410,23 +410,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "end":
 			err = m.Bottom()
 			needsWalk = true
-		case "up", "k":
-			err = m.Prev(1)
+		case "k", "kk", "kkk", "kkkk":
+			err = m.Prev(len(msg.String()))
 			needsWalk = true
-		case "upup", "kk":
-			err = m.Prev(2)
+		case "up", "upup", "upupup", "upupupup":
+			err = m.Prev(len(msg.String()) / 2)
 			needsWalk = true
-		case "upupup", "kkk":
-			err = m.Prev(3)
+		case "j", "jj", "jjj", "jjjj":
+			err = m.Next(len(msg.String()))
 			needsWalk = true
-		case "down", "j":
-			err = m.Next(1)
-			needsWalk = true
-		case "downdown", "jj":
-			err = m.Next(2)
-			needsWalk = true
-		case "downdowndown", "jjj":
-			err = m.Next(3)
+		case "down", "downdown", "downdowndown", "downdowndowndown":
+			err = m.Next(len(msg.String()) / 4)
 			needsWalk = true
 		case "pgup":
 			err = m.Prev(m.view.h - 1)
