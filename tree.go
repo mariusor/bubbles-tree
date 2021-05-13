@@ -128,10 +128,13 @@ type Node interface {
 }
 
 type viewport struct {
-	h, w      int
+	// h, w hold the screen dimensions in lines and columns
+	h, w int
+	// top holds the index of the rendered lines that is displayed at the top of the screen
 	top, left int
-	pos       int
-	lines     []string
+	// pos should represend the index of the rendered line that the cursor is on
+	pos   int
+	lines []string
 }
 
 func (v viewport) bottom() int {
@@ -139,16 +142,13 @@ func (v viewport) bottom() int {
 }
 
 func (v *viewport) setPos(pos, maxL, bot int) {
-	diff := v.pos - pos
-	bot -= 2
-	v.pos = clamp(pos, 0, maxL)
-	// prev
+	v.pos = clamp(pos, 0, maxL-1)
+
 	if v.pos < v.top {
-		v.top = clamp(v.top+diff, 0, max(v.h, maxL-v.h)-1)
+		v.top = v.pos
 	}
-	// next
-	if v.pos > bot {
-		v.top = clamp(v.top-diff, 0, max(v.h, maxL-v.h)-1)
+	if v.pos > v.top+bot-1 {
+		v.top = clamp(v.pos-v.h, 0, maxL) + 1
 	}
 }
 
@@ -232,8 +232,9 @@ func (m *Model) Parent() error {
 		return err
 	}
 	if m.t != nil {
-		m.debug("going to parent: %s", parent)
+		m.debug("Going to parent: %s", parent)
 		m.t = t
+		m.view.setPos(0, visibleLines(m.tree), m.bottom())
 	}
 	return nil
 }
@@ -253,9 +254,9 @@ func (m *Model) Advance() error {
 				return err
 			}
 			if m.t != nil {
-				m.debug("advancing to: %s", n.String())
+				m.debug("Advancing to: %s", n.String())
 				m.t = t
-				m.view.pos = 0
+				m.view.setPos(0, visibleLines(m.tree), m.bottom())
 			}
 		}
 		pn.state ^= NodeCollapsed
@@ -265,16 +266,14 @@ func (m *Model) Advance() error {
 
 // Top moves the current position to the first element
 func (m *Model) Top() error {
-	m.view.pos = 0
-	m.view.top = 0
+	m.view.setPos(0, visibleLines(m.tree), m.bottom())
 	m.debug("Top: top %d, pos: %d", m.view.top, m.view.pos)
 	return nil
 }
 
 // Bottom moves the current position to the last element
 func (m *Model) Bottom() error {
-	m.view.pos = visibleLines(m.tree) - 1
-	m.view.top = m.view.pos - m.view.h
+	m.view.setPos(visibleLines(m.tree)-1, visibleLines(m.tree), m.bottom())
 	m.debug("Bottom: top %d, pos: %d", m.view.top, m.view.pos)
 	return nil
 }
@@ -295,7 +294,7 @@ func visibleLines(n Nodes) int {
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
 	m.view.setPos(m.view.pos-i, visibleLines(m.tree), m.bottom())
-	m.debug("Next: pos: %d top %d height: %d", m.view.pos, m.view.top, m.bottom())
+	m.debug("Prev(%d): pos: %d top %d height: %d", i, m.view.pos, m.view.top, m.bottom())
 	return nil
 }
 
@@ -303,7 +302,7 @@ func (m *Model) Prev(i int) error {
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
 	m.view.setPos(m.view.pos+i, visibleLines(m.tree), m.bottom())
-	m.debug("Next: pos: %d top %d height: %d", m.view.pos, m.view.top, m.bottom())
+	m.debug("Next(%d): pos: %d top %d height: %d", i, m.view.pos, m.view.top, m.bottom())
 	return nil
 }
 
@@ -430,10 +429,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			err = m.Next(3)
 			needsWalk = true
 		case "pgup":
-			err = m.Prev(m.view.h)
+			err = m.Prev(m.view.h - 1)
 			needsWalk = true
 		case "pgdown":
-			err = m.Next(m.view.h)
+			err = m.Next(m.view.h - 1)
 			needsWalk = true
 		case "q", "esc", "ctrl+q", "ctrl+c":
 			return m, tea.Quit
@@ -585,9 +584,9 @@ func (m Model) render() string {
 		end = maxLines + top
 	}
 	cropped := rendered[top:end]
-	m.debug("Displaying: cur:%d top:%d bot:%d ren:%d vis:%d:%d", m.view.pos, top, end, len(rendered), len(cropped), visibleLines(cursor))
+	m.debug("Displaying: pos:%d ren:%d vis:%d/%d[%d:%d]", m.view.pos, len(rendered), len(cropped), visibleLines(cursor), top, end)
 	for i, l := range cropped {
-		if i == m.view.pos {
+		if i == m.view.pos-top {
 			l = lipgloss.Style{}.Reverse(true).Render(l)
 		}
 		m.view.lines[i] = l
