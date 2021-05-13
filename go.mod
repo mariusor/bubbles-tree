@@ -1,4 +1,4 @@
-module github.com/marius/bubbles-tree
+module github.com/mariusor/bubbles-tree
 
 go 1.16
 

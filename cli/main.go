@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
-	tree "github.com/marius/bubbles-tree"
+	tree "github.com/mariusor/bubbles-tree"
 )
 
 const RootPath = tree.Path("/tmp")
