@@ -570,14 +570,8 @@ func (m Model) render() string {
 	// NOTE(marius): here we're rendering more lines than we strictly need
 	rendered := renderNodes(m, cursor)
 
-	top := 0
-	end := len(rendered)
-	if m.view.top < len(rendered) {
-		top = m.view.top
-	}
-	if maxLines+top < end {
-		end = maxLines + top
-	}
+	top := clamp(m.view.top, 0, len(rendered))
+	end := clamp(maxLines + top, 0, len(rendered))
 	cropped := rendered[top:end]
 	m.debug("Displaying: pos:%d ren:%d vis:%d/%d[%d:%d]", m.view.pos, len(rendered), len(cropped), visibleLines(cursor), top, end)
 	for i, l := range cropped {
