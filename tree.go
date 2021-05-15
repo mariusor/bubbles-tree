@@ -307,7 +307,6 @@ func (m *Model) Next(i int) error {
 type Msg string
 
 func (m Model) init() tea.Msg {
-	walk(&m)
 	return Msg("initialized")
 }
 
@@ -388,6 +387,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	needsWalk := false
 	switch msg := msg.(type) {
 	case Msg:
+		needsWalk = true
 		m.debug(string(msg))
 	case tea.KeyMsg:
 		// TODO(marius): we can create a data type that can be passed to the model and would function as key mapping.
@@ -571,7 +571,7 @@ func (m Model) render() string {
 	rendered := renderNodes(m, cursor)
 
 	top := clamp(m.view.top, 0, len(rendered))
-	end := clamp(maxLines + top, 0, len(rendered))
+	end := clamp(maxLines+top, 0, len(rendered))
 	cropped := rendered[top:end]
 	m.debug("Displaying: pos:%d ren:%d vis:%d/%d[%d:%d]", m.view.pos, len(rendered), len(cropped), visibleLines(cursor), top, end)
 	for i, l := range cropped {
