@@ -327,6 +327,9 @@ func findNodeByPath(nodes Nodes, path string) Node {
 }
 
 func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
 	flatNodes := make(Nodes, len(paths))
 	top := paths[0]
 	topCnt := len(strings.Split(top, "/"))
@@ -354,10 +357,11 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 		}
 		return v1 && !v2
 	})
+
 	nodes := make(Nodes, 0)
 	for _, n := range flatNodes {
 		ppath, _ := path.Split(n.String())
-		if parent := findNodeByPath(flatNodes, ppath); parent != nil {
+		if parent := findNodeByPath(flatNodes, ppath); parent != nil && parent != n {
 			if p, ok := parent.(*pathNode); ok {
 				p.Nodes = append(p.Nodes, n)
 			}
