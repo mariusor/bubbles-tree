@@ -2,6 +2,7 @@ package tree
 
 import (
 	"fmt"
+	"net/url"
 	"path"
 	"path/filepath"
 	"sort"
@@ -360,8 +361,13 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 
 	nodes := make(Nodes, 0)
 	for _, n := range flatNodes {
-		ppath, _ := path.Split(n.String())
-		if parent := findNodeByPath(flatNodes, ppath); parent != nil && parent != n {
+		var ppath string
+		if u, err := url.Parse(n.String()); err == nil {
+			ppath, _ = path.Split(u.Path)
+		} else {
+			ppath, _ = path.Split(n.String())
+		}
+		if parent := findNodeByPath(flatNodes, ppath); parent != nil {
 			if p, ok := parent.(*pathNode); ok {
 				p.Nodes = append(p.Nodes, n)
 			}
@@ -408,28 +414,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			needsWalk = true
 		case "home":
 			err = m.Top()
-			needsWalk = true
 		case "end":
 			err = m.Bottom()
-			needsWalk = true
 		case "k", "kk", "kkk", "kkkk":
 			err = m.Prev(len(msg.String()))
-			needsWalk = true
 		case "up", "upup", "upupup", "upupupup":
 			err = m.Prev(len(msg.String()) / 2)
-			needsWalk = true
 		case "j", "jj", "jjj", "jjjj":
 			err = m.Next(len(msg.String()))
-			needsWalk = true
 		case "down", "downdown", "downdowndown", "downdowndowndown":
 			err = m.Next(len(msg.String()) / 4)
-			needsWalk = true
 		case "pgup":
 			err = m.Prev(m.view.h - 1)
-			needsWalk = true
 		case "pgdown":
 			err = m.Next(m.view.h - 1)
-			needsWalk = true
 		case "o":
 			err = m.ToggleExpand()
 			needsWalk = true
@@ -513,9 +511,9 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		style = ErrStyle
 	}
 
-	_, name := path.Split(t.String())
+	base, name := path.Split(t.String())
 	if name == "" {
-		return ""
+		name = base
 	}
 	return style.Width(m.view.w).Render(fmt.Sprintf("%s%2s %s", padding, annotation, name))
 }
