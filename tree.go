@@ -491,8 +491,8 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		}
 	}
 
-	for i := 0; i <= depth; i++ {
-		padding += "   " // 3 is the length of a tree opener
+	for i := 0; i < depth; i++ {
+		padding += "  " // 2 is the length of a tree opener
 	}
 	if nodeHints&NodeLastChild == NodeLastChild {
 		padding += BoxDrawingsUpAndRight
@@ -515,7 +515,19 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 	if name == "" {
 		name = base
 	}
-	return style.Width(m.view.w).Render(fmt.Sprintf("%s%2s %s", padding, annotation, name))
+	prefix := fmt.Sprintf("%s%-2s", padding, annotation)
+	name = ellipsize(name, m.view.w-strings.Count(prefix, ""))
+	return style.Width(m.view.w).Render(fmt.Sprintf("%s%s", prefix, name))
+}
+
+func ellipsize(s string, w int) string {
+	if w > len(s) {
+		return s
+	}
+	b := strings.Builder{}
+	b.WriteString(s[:w-1])
+	b.WriteString(Ellipsis)
+	return b.String()
 }
 
 func renderNodes(m Model, nl Nodes) []string {
