@@ -230,8 +230,8 @@ func (m *Model) Parent() error {
 	if err != nil {
 		return err
 	}
+	m.debug("Going to parent: %s", parent)
 	if m.t != nil {
-		m.debug("Going to parent: %s", parent)
 		m.t = t
 		m.view.setPos(0, visibleLines(m.tree), m.bottom())
 	}
@@ -246,6 +246,7 @@ func (m *Model) Advance() error {
 	}
 	// TODO(marius): this behaviour needs to be moved to the Treeish interface, as all implementations
 	//   will need to know that a node is being collapsed or expanded.
+	m.debug("Advancing to: %s", n.String())
 	if pn, ok := n.(*pathNode); ok {
 		if pn.state&NodeCollapsed == NodeCollapsed {
 			t, err := m.t.Advance(n.String())
@@ -253,7 +254,6 @@ func (m *Model) Advance() error {
 				return err
 			}
 			if m.t != nil {
-				m.debug("Advancing to: %s", n.String())
 				m.t = t
 				m.view.setPos(0, visibleLines(m.tree), m.bottom())
 			}
@@ -367,7 +367,7 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 		} else {
 			ppath, _ = path.Split(n.String())
 		}
-		if parent := findNodeByPath(flatNodes, ppath); parent != nil {
+		if parent := findNodeByPath(flatNodes, ppath); parent != nil && ppath != parent.String() {
 			if p, ok := parent.(*pathNode); ok {
 				p.Nodes = append(p.Nodes, n)
 			}
@@ -535,6 +535,10 @@ func renderNodes(m Model, nl Nodes) []string {
 
 	nlLen := len(nl)
 	firstInTree := m.tree.at(0)
+	startsWithRoot := false
+	if firstInTree.String() == "/" {
+		startsWithRoot = true
+	}
 	topDepth := len(strings.Split(firstInTree.String(), "/"))
 
 	for i, n := range nl {
@@ -544,6 +548,8 @@ func renderNodes(m Model, nl Nodes) []string {
 		}
 		isFirst := firstInTree == n
 
+		depth := len(strings.Split(n.String(), "/")) - topDepth
+
 		hints := 0
 		if i == 0 && isFirst {
 			hints = NodeFirstChild
@@ -551,7 +557,9 @@ func renderNodes(m Model, nl Nodes) []string {
 			hints |= NodeLastChild
 		}
 
-		depth := len(strings.Split(n.String(), "/")) - topDepth
+		if startsWithRoot && !isFirst {
+			depth += 1
+		}
 		out := m.renderNode(n, 0, hints, depth)
 		if len(out) > 0 {
 			rendered = append(rendered, out)
