@@ -1,9 +1,11 @@
 package tree
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Path string
@@ -20,14 +22,42 @@ func (p Path) State(file string) (NodeState, error) {
 	return state, nil
 }
 
+func fileDetails(file string) string {
+	fi, _ := os.Lstat(file)
+
+	s := strings.Builder{}
+	switch mode := fi.Mode(); {
+	case mode.IsRegular():
+		fmt.Fprintf(&s, "Regular file %s", file)
+	case mode&fs.ModeSymlink != 0:
+		fmt.Fprintf(&s, "Symbolic link %s", file)
+	case mode&fs.ModeNamedPipe != 0:
+		fmt.Fprintf(&s, "Named pipe %s", file)
+	}
+	fmt.Fprintf(&s, "\nSize: %d bytes\nMode: %o", fi.Size(), fi.Mode().Perm())
+	return s.String()
+}
+
 // Advance returns a new Treeish object based on the new path
-func (p Path) Advance(file string) (Treeish, error) {
-	fi, err := os.Stat(file)
+// If the path corresponds to a folder it will return a new
+// Path instance based on that.
+// If it represents a file it will return an error which
+// contains some details about it.
+// For a real life implementation the treeish struct must be
+// plugged to some function that can use said path when Advance
+// is being called.
+func (p Path) Advance(path string) (Treeish, error) {
+	fi, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
 	if fi.IsDir() {
-		return Path(file), nil
+		return Path(path), nil
+	} else {
+		// This is just an example that works with the error reporting
+		// in the tree.Model and displays some basic information about
+		// the file path under cursor.
+		return nil, fmt.Errorf(fileDetails(path))
 	}
 	return nil, nil
 }

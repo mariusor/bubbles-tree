@@ -40,7 +40,9 @@ type Treeish interface {
 	// for the cases where the path doesn't correspond to a Treeish object.
 	// Specifically in the case of the filepath Treeish:
 	// If a passed path parameter corresponds to a folder, it will return a new Treeish object at the new path
-	// If the passed path parameter corresponds to a file, it returns a nil Treeish but can execute something else.
+	// If the passed path parameter corresponds to a file, it returns a nil Treeish but it can execute something else.
+	// Eg, When being passed a path that corresponds to a text file, another bubbletea function corresponding to a
+	// viewer can be called from here.
 	Advance(string) (Treeish, error)
 	// State returns the NodeState for the received path parameter
 	// This is used when rendering the path in the tree view
@@ -246,19 +248,18 @@ func (m *Model) Advance() error {
 	}
 	// TODO(marius): this behaviour needs to be moved to the Treeish interface, as all implementations
 	//   will need to know that a node is being collapsed or expanded.
-	m.debug("Advancing to: %s", n.String())
 	if pn, ok := n.(*pathNode); ok {
-		if pn.state&NodeCollapsed == NodeCollapsed {
-			t, err := m.t.Advance(n.String())
-			if err != nil {
-				return err
-			}
-			if m.t != nil {
-				m.t = t
-				m.view.setPos(0, visibleLines(m.tree), m.bottom())
-			}
+		t, err := m.t.Advance(n.String())
+		if err != nil {
+			return err
 		}
-		pn.state ^= NodeCollapsed
+		m.debug("Advancing to: %s", n.String())
+		m.t = t
+		m.view.setPos(0, visibleLines(m.tree), m.bottom())
+
+		if pn.state&NodeCollapsed == NodeCollapsed {
+			pn.state ^= NodeCollapsed
+		}
 	}
 	return nil
 }
