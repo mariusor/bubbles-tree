@@ -131,8 +131,8 @@ type Node interface {
 }
 
 type viewport struct {
-	// h, w hold the screen dimensions in lines and columns
-	h, w int
+	// Height, Width hold the screen dimensions in lines and columns
+	Height, Width int
 	// top holds the index of the rendered lines that is displayed at the top of the screen
 	top, left int
 	// pos should represend the index of the rendered line that the cursor is on
@@ -141,7 +141,7 @@ type viewport struct {
 }
 
 func (v viewport) bottom() int {
-	return min(v.top+v.h, v.h)
+	return min(v.top+v.Height, v.Height)
 }
 
 func (v *viewport) setPos(pos, maxL, bot int) {
@@ -151,7 +151,7 @@ func (v *viewport) setPos(pos, maxL, bot int) {
 		v.top = v.pos
 	}
 	if v.pos > v.top+bot-1 {
-		v.top = clamp(v.pos-v.h, 0, maxL) + 1
+		v.top = clamp(v.pos-v.Height, 0, maxL) + 1
 	}
 }
 
@@ -192,12 +192,13 @@ func (n Nodes) GoString() string {
 
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
+	viewport
+
 	tree       Nodes
 	debugNodes Nodes
 	Debug      bool
 
-	t    Treeish
-	view viewport
+	t Treeish
 }
 
 func New(t Treeish) Model {
@@ -205,7 +206,7 @@ func New(t Treeish) Model {
 }
 
 func (m *Model) bottom() int {
-	bot := m.view.bottom()
+	bot := m.viewport.bottom()
 	if m.Debug {
 		return bot - len(m.debugNodes)
 	}
@@ -216,7 +217,7 @@ func (m *Model) Children() Nodes {
 	return m.tree
 }
 
-// ToggleExpand toggles the expanded state of the node pointed at by m.view.pos
+// ToggleExpand toggles the expanded state of the node pointed at by m.pos
 func (m *Model) ToggleExpand() error {
 	return nil
 }
@@ -225,7 +226,7 @@ func (m *Model) ToggleExpand() error {
 func (m *Model) Parent() error {
 	n := m.tree.at(0)
 	if n == nil {
-		return fmt.Errorf("invalid node at pos %d", m.view.pos)
+		return fmt.Errorf("invalid node at pos %d", m.pos)
 	}
 	parent := path.Dir(n.String())
 	t, err := m.t.Advance(parent)
@@ -235,16 +236,16 @@ func (m *Model) Parent() error {
 	m.debug("Going to parent: %s", parent)
 	if m.t != nil {
 		m.t = t
-		m.view.setPos(0, visibleLines(m.tree), m.bottom())
+		m.setPos(0, visibleLines(m.tree), m.bottom())
 	}
 	return nil
 }
 
-// Advance moves the whole Treeish to the node m.view.pos points at
+// Advance moves the whole Treeish to the node m.pos points at
 func (m *Model) Advance() error {
-	n := m.tree.at(m.view.pos)
+	n := m.tree.at(m.pos)
 	if n == nil {
-		return fmt.Errorf("invalid node at pos %d", m.view.pos)
+		return fmt.Errorf("invalid node at pos %d", m.pos)
 	}
 	// TODO(marius): this behaviour needs to be moved to the Treeish interface, as all implementations
 	//   will need to know that a node is being collapsed or expanded.
@@ -255,7 +256,7 @@ func (m *Model) Advance() error {
 		}
 		m.debug("Advancing to: %s", n.String())
 		m.t = t
-		m.view.setPos(0, visibleLines(m.tree), m.bottom())
+		m.setPos(0, visibleLines(m.tree), m.bottom())
 
 		if pn.state&NodeCollapsed == NodeCollapsed {
 			pn.state ^= NodeCollapsed
@@ -266,15 +267,15 @@ func (m *Model) Advance() error {
 
 // Top moves the current position to the first element
 func (m *Model) Top() error {
-	m.view.setPos(0, visibleLines(m.tree), m.bottom())
-	m.debug("Top: top %d, pos: %d", m.view.top, m.view.pos)
+	m.setPos(0, visibleLines(m.tree), m.bottom())
+	m.debug("Top: top %d, pos: %d", m.top, m.pos)
 	return nil
 }
 
 // Bottom moves the current position to the last element
 func (m *Model) Bottom() error {
-	m.view.setPos(visibleLines(m.tree)-1, visibleLines(m.tree), m.bottom())
-	m.debug("Bottom: top %d, pos: %d", m.view.top, m.view.pos)
+	m.setPos(visibleLines(m.tree)-1, visibleLines(m.tree), m.bottom())
+	m.debug("Bottom: top %d, pos: %d", m.top, m.pos)
 	return nil
 }
 
@@ -293,16 +294,16 @@ func visibleLines(n Nodes) int {
 // Prev moves the current position to the previous 'i'th element in the tree.
 // If it's above the viewport we need to recompute the top
 func (m *Model) Prev(i int) error {
-	m.view.setPos(m.view.pos-i, visibleLines(m.tree), m.bottom())
-	m.debug("Prev(%d): pos: %d top %d height: %d", i, m.view.pos, m.view.top, m.bottom())
+	m.setPos(m.pos-i, visibleLines(m.tree), m.bottom())
+	m.debug("Prev(%d): pos: %d top %d height: %d", i, m.pos, m.top, m.bottom())
 	return nil
 }
 
 // Next moves the current position to the next 'i'th element in the tree
 // If it's below the viewport we need to recompute the top
 func (m *Model) Next(i int) error {
-	m.view.setPos(m.view.pos+i, visibleLines(m.tree), m.bottom())
-	m.debug("Next(%d): pos: %d top %d height: %d", i, m.view.pos, m.view.top, m.bottom())
+	m.setPos(m.pos+i, visibleLines(m.tree), m.bottom())
+	m.debug("Next(%d): pos: %d top %d height: %d", i, m.pos, m.top, m.bottom())
 	return nil
 }
 
@@ -380,7 +381,7 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 }
 
 func walk(m *Model) error {
-	paths, err := m.t.Walk(m.view.h)
+	paths, err := m.t.Walk(m.Height)
 	if err != nil {
 		m.err(err)
 	}
@@ -426,9 +427,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "downdown", "downdowndown", "downdowndowndown":
 			err = m.Next(len(msg.String()) / 4)
 		case "pgup":
-			err = m.Prev(m.view.h - 1)
+			err = m.Prev(m.Height - 1)
 		case "pgdown":
-			err = m.Next(m.view.h - 1)
+			err = m.Next(m.Height - 1)
 		case "o":
 			err = m.ToggleExpand()
 			needsWalk = true
@@ -438,17 +439,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err(fmt.Errorf("unknown key %q", msg))
 		}
 	case tea.WindowSizeMsg:
-		m.view.h = msg.Height
-		m.view.w = msg.Width
-		m.view.lines = make([]string, m.view.h)
+		m.Height = msg.Height
+		m.Width = msg.Width
+		m.lines = make([]string, m.Height)
 	}
 	if err != nil {
 		m.err(err)
 	}
 	if needsWalk {
 		walk(&m)
-		for i := range m.view.lines {
-			m.view.lines[i] = ""
+		for i := range m.lines {
+			m.lines[i] = ""
 		}
 	}
 	return m, nil
@@ -477,7 +478,7 @@ func (m Model) renderDebugNode(t Node) string {
 		annotation = "!"
 	}
 
-	return style.Width(m.view.w).Render(fmt.Sprintf("%2s %s", annotation, t.String()))
+	return style.Width(m.Width).Render(fmt.Sprintf("%2s %s", annotation, t.String()))
 }
 
 func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
@@ -517,8 +518,8 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		name = base
 	}
 	prefix := fmt.Sprintf("%s%-2s", padding, annotation)
-	name = ellipsize(name, m.view.w-strings.Count(prefix, ""))
-	return style.Width(m.view.w).Render(fmt.Sprintf("%s%s", prefix, name))
+	name = ellipsize(name, m.Width-strings.Count(prefix, ""))
+	return style.Width(m.Width).Render(fmt.Sprintf("%s%s", prefix, name))
 }
 
 func ellipsize(s string, w int) string {
@@ -578,7 +579,7 @@ func renderNodes(m Model, nl Nodes) []string {
 }
 
 func (m Model) render() string {
-	if m.view.h == 0 {
+	if m.Height == 0 {
 		return ""
 	}
 	cursor := m.Children()
@@ -593,25 +594,25 @@ func (m Model) render() string {
 	// NOTE(marius): here we're rendering more lines than we strictly need
 	rendered := renderNodes(m, cursor)
 
-	top := clamp(m.view.top, 0, len(rendered))
+	top := clamp(m.top, 0, len(rendered))
 	end := clamp(maxLines+top, 0, len(rendered))
 	cropped := rendered[top:end]
-	m.debug("Displaying: pos:%d ren:%d vis:%d/%d[%d:%d]", m.view.pos, len(rendered), len(cropped), visibleLines(cursor), top, end)
+	m.debug("Displaying: pos:%d ren:%d vis:%d/%d[%d:%d]", m.pos, len(rendered), len(cropped), visibleLines(cursor), top, end)
 	for i, l := range cropped {
-		if i == m.view.pos-top {
+		if i == m.pos-top {
 			l = lipgloss.Style{}.Reverse(true).Render(l)
 		}
-		m.view.lines[i] = l
+		m.lines[i] = l
 	}
 
-	debStart := len(m.view.lines) - len(m.debugNodes)
+	debStart := len(m.lines) - len(m.debugNodes)
 	if m.Debug && debStart >= 0 {
 		for i, n := range m.debugNodes {
 			lineIndx := debStart + i
-			m.view.lines[lineIndx] = m.renderDebugNode(n)
+			m.lines[lineIndx] = m.renderDebugNode(n)
 		}
 	}
-	return strings.Join(m.view.lines, "\n")
+	return strings.Join(m.lines, "\n")
 }
 
 func clamp(v, low, high int) int {
