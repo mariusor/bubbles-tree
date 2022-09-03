@@ -3,6 +3,7 @@ module github.com/mariusor/bubbles-tree
 go 1.16
 
 require (
+	github.com/charmbracelet/bubbles v0.13.0
 	github.com/charmbracelet/bubbletea v0.22.1
 	github.com/charmbracelet/lipgloss v0.5.0
 	github.com/muesli/ansi v0.0.0-20211031195517-c9f0611b6c70 // indirect

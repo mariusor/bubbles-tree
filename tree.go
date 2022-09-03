@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -23,7 +25,7 @@ type NodeState int
 
 const (
 	// NodeCollapsed hints that the current node is collapsed
-	NodeCollapsed = 1 << iota
+	NodeCollapsed NodeState = 1 << iota
 	// NodeCollapsible hints that the current node can be collapsed
 	NodeCollapsible
 	// NodeVisible hints that the current node is ready to be displayed
@@ -40,7 +42,7 @@ type Treeish interface {
 	// for the cases where the path doesn't correspond to a Treeish object.
 	// Specifically in the case of the filepath Treeish:
 	// If a passed path parameter corresponds to a folder, it will return a new Treeish object at the new path
-	// If the passed path parameter corresponds to a file, it returns a nil Treeish but it can execute something else.
+	// If the passed path parameter corresponds to a file, it returns a nil Treeish, but it can execute something else.
 	// Eg, When being passed a path that corresponds to a text file, another bubbletea function corresponding to a
 	// viewer can be called from here.
 	Advance(string) (Treeish, error)
@@ -52,48 +54,14 @@ type Treeish interface {
 	Walk(int) ([]string, error)
 }
 
-type debugNode struct {
-	Content interface{}
-	state   NodeState
-}
-
-func debug(m interface{}) debugNode {
-	return debugNode{Content: m}
-}
-
 func (m *Model) debug(s string, params ...interface{}) {
-	if m.debugNodes == nil {
-		m.debugNodes = make([]Node, 0)
-	}
-	m.debugNodes = append(m.debugNodes, debug(fmt.Sprintf(s, params...)))
+	m.LogFn(s, params...)
 }
 
 func (m *Model) err(err error) {
-	if m.debugNodes == nil {
-		m.debugNodes = make([]Node, 0)
+	if err != nil {
+		m.LogFn("error: %s", err.Error())
 	}
-	m.debugNodes = append(m.debugNodes, debug(err))
-}
-
-func (d debugNode) String() string {
-	switch n := d.Content.(type) {
-	case error:
-		return n.Error()
-	case string:
-		return n
-	}
-	return fmt.Sprintf("unknown type %T", d)
-}
-
-func (d debugNode) Children() Nodes {
-	return nil
-}
-
-func (d debugNode) State() NodeState {
-	if _, ok := d.Content.(error); ok {
-		return NodeError
-	}
-	return NodeDebug
 }
 
 type pathNode struct {
@@ -130,42 +98,55 @@ type Node interface {
 	State() NodeState
 }
 
-type viewport struct {
-	// Height, Width hold the screen dimensions in lines and columns
-	Height, Width int
-	// top holds the index of the rendered lines that is displayed at the top of the screen
-	top, left int
-	// pos should represend the index of the rendered line that the cursor is on
-	pos   int
-	lines []string
+// MoveUp moves the selection up by any number of row.
+// It can not go above the first row.
+func (m *Model) MoveUp(n int) {
+	m.cursor = clamp(m.cursor-n, 0, m.tree.Len()-1)
+	m.debug("move %d, new pos: %d", n, m.cursor)
+
+	m.viewport.LineUp(n)
+	//if m.cursor < m.viewport.YOffset {
+	//	m.debug("yoffset adjustment %d", m.cursor)
+	//	m.viewport.SetYOffset(m.cursor)
+	//}
+	m.UpdateViewport()
 }
 
-func (v viewport) bottom() int {
-	return min(v.top+v.Height, v.Height)
+// MoveDown moves the selection down by any number of row.
+// It can not go below the last row.
+func (m *Model) MoveDown(n int) {
+	m.cursor = clamp(m.cursor+n, 0, m.tree.Len()-1)
+	m.debug("move %d, new pos: %d", n, m.cursor)
+
+	//if m.cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
+	//	m.debug("yoffset adjustment %d", m.cursor-(m.viewport.Height-1))
+	//	m.viewport.SetYOffset(m.cursor - (m.viewport.Height - 1))
+	//}
+	m.viewport.LineDown(n)
+	m.UpdateViewport()
 }
 
-func (v *viewport) setPos(pos, maxL, bot int) {
-	v.pos = clamp(pos, 0, maxL-1)
+// GotoTop moves the selection to the first row.
+func (m *Model) GotoTop() {
+	m.MoveUp(m.cursor)
+}
 
-	if v.pos < v.top {
-		v.top = v.pos
-	}
-	if v.pos > v.top+bot-1 {
-		v.top = clamp(v.pos-v.Height, 0, maxL) + 1
-	}
+// GotoBottom moves the selection to the last row.
+func (m *Model) GotoBottom() {
+	m.MoveDown(m.tree.Len())
 }
 
 type Nodes []Node
 
 func (n Nodes) Len() int {
-	len := 0
+	l := 0
 	for _, node := range n {
-		len++
+		l++
 		if node.Children() != nil {
-			len += node.Children().Len()
+			l += node.Children().Len()
 		}
 	}
-	return len
+	return l
 }
 
 func (n Nodes) at(i int) Node {
@@ -190,35 +171,154 @@ func (n Nodes) GoString() string {
 	return s.String()
 }
 
+// KeyMap defines keybindings.
+// It satisfies to the github.com/charm/bubbles/help.KeyMap interface, which is used to render the menu.
+type KeyMap struct {
+	LineUp       key.Binding
+	LineDown     key.Binding
+	PageUp       key.Binding
+	PageDown     key.Binding
+	HalfPageUp   key.Binding
+	HalfPageDown key.Binding
+	GotoTop      key.Binding
+	GotoBottom   key.Binding
+
+	Debug   key.Binding
+	Expand  key.Binding
+	Advance key.Binding
+	Parent  key.Binding
+}
+
+// DefaultKeyMap returns a default set of keybindings.
+func DefaultKeyMap() KeyMap {
+	return KeyMap{
+		LineUp: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		LineDown: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+		PageUp: key.NewBinding(
+			key.WithKeys("b", "pgup"),
+			key.WithHelp("b/pgup", "page up"),
+		),
+		PageDown: key.NewBinding(
+			key.WithKeys("f", "pgdown", " "),
+			key.WithHelp("f/pgdn", "page down"),
+		),
+		HalfPageUp: key.NewBinding(
+			key.WithKeys("u", "ctrl+u"),
+			key.WithHelp("u", "½ page up"),
+		),
+		HalfPageDown: key.NewBinding(
+			key.WithKeys("d", "ctrl+d"),
+			key.WithHelp("d", "½ page down"),
+		),
+		GotoTop: key.NewBinding(
+			key.WithKeys("home", "g"),
+			key.WithHelp("g/home", "go to start"),
+		),
+		GotoBottom: key.NewBinding(
+			key.WithKeys("end", "G"),
+			key.WithHelp("G/end", "go to end"),
+		),
+		Debug: key.NewBinding(
+			key.WithKeys("`"),
+			key.WithHelp("`", "show debug view"),
+		),
+		Expand: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "toggle expand for current node"),
+		),
+		Advance: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "open this node"),
+		),
+		Parent: key.NewBinding(
+			key.WithKeys("backspace"),
+			key.WithHelp("backspace", "go back to the parent node"),
+		),
+	}
+}
+
+// Styles contains style definitions for this list component. By default, these
+// values are generated by DefaultStyles.
+type Styles struct {
+	Line     lipgloss.Style
+	Selected lipgloss.Style
+}
+
+// DefaultStyles returns a set of default style definitions for this table.
+func DefaultStyles() Styles {
+	return Styles{
+		Line:     lipgloss.NewStyle(),
+		Selected: lipgloss.NewStyle().Reverse(true),
+	}
+}
+
+// SetStyles sets the table styles.
+func (m *Model) SetStyles(s Styles) {
+	m.styles = s
+	m.UpdateViewport()
+}
+
+// UpdateViewport updates the list content based on the previously defined
+// columns and rows.
+func (m *Model) UpdateViewport() {
+	m.err(walk(m))
+	renderedRows := m.render()
+	m.viewport.SetContent(
+		lipgloss.JoinVertical(lipgloss.Left, renderedRows...),
+	)
+}
+
+type logFn func(s string, args ...interface{})
+
+func emptyLog(_ string, _ ...interface{}) {}
+
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
-	viewport
+	KeyMap   KeyMap
+	viewport viewport.Model
 
-	tree       Nodes
-	debugNodes Nodes
-	Debug      bool
+	cursor int
+	focus  bool
+	styles Styles
+
+	tree  Nodes
+	Debug bool
+	LogFn logFn
 
 	t Treeish
 }
 
 func New(t Treeish) Model {
-	return Model{t: t}
+	return Model{
+		t: t,
+
+		viewport: viewport.New(0, 1),
+		focus:    true,
+
+		KeyMap: DefaultKeyMap(),
+		styles: DefaultStyles(),
+		LogFn:  emptyLog,
+	}
 }
 
 func (m *Model) bottom() int {
-	bot := m.viewport.bottom()
-	if m.Debug {
-		return bot - len(m.debugNodes)
-	}
-	return bot
+	return m.viewport.Height
 }
 
 func (m *Model) Children() Nodes {
 	return m.tree
 }
 
-// ToggleExpand toggles the expanded state of the node pointed at by m.pos
+// ToggleExpand toggles the expanded state of the node pointed at by m.cursor
 func (m *Model) ToggleExpand() error {
+	n := m.tree.at(m.cursor)
+	m.LogFn("TODO: expanding: %s", n)
 	return nil
 }
 
@@ -226,7 +326,7 @@ func (m *Model) ToggleExpand() error {
 func (m *Model) Parent() error {
 	n := m.tree.at(0)
 	if n == nil {
-		return fmt.Errorf("invalid node at pos %d", m.pos)
+		return fmt.Errorf("invalid node at pos %d", m.cursor)
 	}
 	parent := path.Dir(n.String())
 	t, err := m.t.Advance(parent)
@@ -236,16 +336,16 @@ func (m *Model) Parent() error {
 	m.debug("Going to parent: %s", parent)
 	if m.t != nil {
 		m.t = t
-		m.setPos(0, visibleLines(m.tree), m.bottom())
+		m.GotoTop()
 	}
 	return nil
 }
 
-// Advance moves the whole Treeish to the node m.pos points at
+// Advance moves the whole Treeish to the node m.cursor points at
 func (m *Model) Advance() error {
-	n := m.tree.at(m.pos)
+	n := m.tree.at(m.cursor)
 	if n == nil {
-		return fmt.Errorf("invalid node at pos %d", m.pos)
+		return fmt.Errorf("invalid node at pos %d", m.cursor)
 	}
 	// TODO(marius): this behaviour needs to be moved to the Treeish interface, as all implementations
 	//   will need to know that a node is being collapsed or expanded.
@@ -256,26 +356,12 @@ func (m *Model) Advance() error {
 		}
 		m.debug("Advancing to: %s", n.String())
 		m.t = t
-		m.setPos(0, visibleLines(m.tree), m.bottom())
+		m.GotoTop()
 
 		if pn.state&NodeCollapsed == NodeCollapsed {
 			pn.state ^= NodeCollapsed
 		}
 	}
-	return nil
-}
-
-// Top moves the current position to the first element
-func (m *Model) Top() error {
-	m.setPos(0, visibleLines(m.tree), m.bottom())
-	m.debug("Top: top %d, pos: %d", m.top, m.pos)
-	return nil
-}
-
-// Bottom moves the current position to the last element
-func (m *Model) Bottom() error {
-	m.setPos(visibleLines(m.tree)-1, visibleLines(m.tree), m.bottom())
-	m.debug("Bottom: top %d, pos: %d", m.top, m.pos)
 	return nil
 }
 
@@ -291,29 +377,41 @@ func visibleLines(n Nodes) int {
 	return count
 }
 
-// Prev moves the current position to the previous 'i'th element in the tree.
-// If it's above the viewport we need to recompute the top
-func (m *Model) Prev(i int) error {
-	m.setPos(m.pos-i, visibleLines(m.tree), m.bottom())
-	m.debug("Prev(%d): pos: %d top %d height: %d", i, m.pos, m.top, m.bottom())
-	return nil
+// SetWidth sets the width of the viewport of the table.
+func (m *Model) SetWidth(w int) {
+	m.viewport.Width = w
+	m.UpdateViewport()
 }
 
-// Next moves the current position to the next 'i'th element in the tree
-// If it's below the viewport we need to recompute the top
-func (m *Model) Next(i int) error {
-	m.setPos(m.pos+i, visibleLines(m.tree), m.bottom())
-	m.debug("Next(%d): pos: %d top %d height: %d", i, m.pos, m.top, m.bottom())
-	return nil
+// SetHeight sets the height of the viewport of the table.
+func (m *Model) SetHeight(h int) {
+	m.viewport.Height = h
+	m.UpdateViewport()
+}
+
+// Height returns the viewport height of the table.
+func (m *Model) Height() int {
+	return m.viewport.Height
+}
+
+// Width returns the viewport width of the table.
+func (m *Model) Width() int {
+	return m.viewport.Width
+}
+
+// Cursor returns the index of the selected row.
+func (m *Model) Cursor() int {
+	return m.cursor
 }
 
 type Msg string
 
-func (m Model) init() tea.Msg {
+func (m *Model) init() tea.Msg {
 	return Msg("initialized")
 }
 
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
+	m.Advance()
 	return m.init
 }
 
@@ -381,83 +479,103 @@ func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
 }
 
 func walk(m *Model) error {
-	paths, err := m.t.Walk(m.Height)
+	m.debug("walking treeish: %v", m.t)
+	paths, err := m.t.Walk(m.viewport.Height)
 	if err != nil {
 		m.err(err)
 	}
+	m.debug("loaded %d paths", len(paths))
 	m.tree, err = buildNodeTree(m.t, paths)
 	if err != nil {
 		m.err(err)
 	}
+	m.debug("built %d nodes", m.tree.Len())
 	return nil
 }
 
+// Focused returns the focus state of the table.
+func (m *Model) Focused() bool {
+	return m.focus
+}
+
+// Focus focusses the table, allowing the user to move around the rows and
+// interact.
+func (m *Model) Focus() {
+	m.focus = true
+	m.UpdateViewport()
+}
+
+// Blur blurs the table, preventing selection or movement.
+func (m *Model) Blur() {
+	m.focus = false
+	m.UpdateViewport()
+}
+
 // Update is the Tea update function which binds keystrokes to pagination.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m.debugNodes = m.debugNodes[:0]
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if !m.focus {
+		return m, nil
+	}
+
 	var err error
-	needsWalk := false
+
 	switch msg := msg.(type) {
-	case Msg:
-		needsWalk = true
-		m.debug(string(msg))
-	case tea.KeyMsg:
-		// TODO(marius): we can create a data type that can be passed to the model and would function as key mapping.
-		//   So the dev can load the mapping from someplace.
-		//   There can be one where we add all the Readline bindings for example.
-		switch msg.String() {
-		case "`":
-			m.Debug = !m.Debug
-		case "enter":
-			err = m.Advance()
-			needsWalk = true
-		case "backspace":
-			err = m.Parent()
-			needsWalk = true
-		case "home":
-			err = m.Top()
-		case "end":
-			err = m.Bottom()
-		case "k", "kk", "kkk", "kkkk":
-			err = m.Prev(len(msg.String()))
-		case "up", "upup", "upupup", "upupupup":
-			err = m.Prev(len(msg.String()) / 2)
-		case "j", "jj", "jjj", "jjjj":
-			err = m.Next(len(msg.String()))
-		case "down", "downdown", "downdowndown", "downdowndowndown":
-			err = m.Next(len(msg.String()) / 4)
-		case "pgup":
-			err = m.Prev(m.Height - 1)
-		case "pgdown":
-			err = m.Next(m.Height - 1)
-		case "o":
-			err = m.ToggleExpand()
-			needsWalk = true
-		case "q", "esc", "ctrl+q", "ctrl+c":
-			return m, tea.Quit
-		default:
-			m.err(fmt.Errorf("unknown key %q", msg))
-		}
 	case tea.WindowSizeMsg:
-		m.Height = msg.Height
-		m.Width = msg.Width
-		m.lines = make([]string, m.Height)
+		m.debug("resize msg: %v", msg)
+		m.SetHeight(msg.Height)
+		m.SetWidth(msg.Width)
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.KeyMap.Debug):
+			m.debug("toggle debug msg: %v", msg)
+			m.Debug = !m.Debug
+		case key.Matches(msg, m.KeyMap.Expand):
+			m.debug("toggle expand msg: %v", msg)
+			err = m.ToggleExpand()
+		case key.Matches(msg, m.KeyMap.Advance):
+			m.debug("advance msg: %v", msg)
+			err = m.Advance()
+		case key.Matches(msg, m.KeyMap.Parent):
+			m.debug("backtrack msg: %v", msg)
+			err = m.Parent()
+		case key.Matches(msg, m.KeyMap.LineUp):
+			m.debug("move up msg: %v", msg)
+			m.MoveUp(1)
+		case key.Matches(msg, m.KeyMap.LineDown):
+			m.debug("move down msg: %v", msg)
+			m.MoveDown(1)
+		case key.Matches(msg, m.KeyMap.PageUp):
+			m.debug("move up a screen msg: %v", msg)
+			m.MoveUp(m.viewport.Height)
+		case key.Matches(msg, m.KeyMap.PageDown):
+			m.debug("move down a screen msg: %v", msg)
+			m.MoveDown(m.viewport.Height)
+		case key.Matches(msg, m.KeyMap.HalfPageUp):
+			m.debug("move up half screen msg: %v", msg)
+			m.MoveUp(m.viewport.Height / 2)
+		case key.Matches(msg, m.KeyMap.HalfPageDown):
+			m.debug("move down half screen msg: %v", msg)
+			m.MoveDown(m.viewport.Height / 2)
+		case key.Matches(msg, m.KeyMap.LineDown):
+			m.debug("move down msg: %v", msg)
+			m.MoveDown(1)
+		case key.Matches(msg, m.KeyMap.GotoTop):
+			m.debug("move top msg: %v", msg)
+			m.GotoTop()
+		case key.Matches(msg, m.KeyMap.GotoBottom):
+			m.debug("move bottom msg: %v", msg)
+			m.GotoBottom()
+		}
 	}
 	if err != nil {
 		m.err(err)
-	}
-	if needsWalk {
-		walk(&m)
-		for i := range m.lines {
-			m.lines[i] = ""
-		}
 	}
 	return m, nil
 }
 
 // View renders the pagination to a string.
-func (m Model) View() string {
-	return m.render()
+func (m *Model) View() string {
+	return m.viewport.View()
 }
 
 const (
@@ -465,7 +583,7 @@ const (
 	NodeLastChild
 )
 
-func (m Model) renderDebugNode(t Node) string {
+func (m *Model) renderDebugNode(t Node) string {
 	style := DefaultStyle
 	annotation := ""
 
@@ -478,10 +596,10 @@ func (m Model) renderDebugNode(t Node) string {
 		annotation = "!"
 	}
 
-	return style.Width(m.Width).Render(fmt.Sprintf("%2s %s", annotation, t.String()))
+	return style.Width(m.viewport.Width).Render(fmt.Sprintf("%2s %s", annotation, t.String()))
 }
 
-func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
+func (m *Model) renderNode(t Node, nodeHints, depth int) string {
 	style := DefaultStyle
 	annotation := ""
 	padding := ""
@@ -518,12 +636,12 @@ func (m Model) renderNode(t Node, cur int, nodeHints, depth int) string {
 		name = base
 	}
 	prefix := fmt.Sprintf("%s%-2s", padding, annotation)
-	name = ellipsize(name, m.Width-strings.Count(prefix, ""))
-	return style.Width(m.Width).Render(fmt.Sprintf("%s%s", prefix, name))
+	name = ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
+	return style.Width(m.viewport.Width).Render(fmt.Sprintf("%s%s", prefix, name))
 }
 
 func ellipsize(s string, w int) string {
-	if w > len(s) {
+	if w > len(s) || w < 0 {
 		return s
 	}
 	b := strings.Builder{}
@@ -532,7 +650,7 @@ func ellipsize(s string, w int) string {
 	return b.String()
 }
 
-func renderNodes(m Model, nl Nodes) []string {
+func renderNodes(m *Model, nl Nodes) []string {
 	rendered := make([]string, 0)
 
 	nlLen := len(nl)
@@ -562,7 +680,7 @@ func renderNodes(m Model, nl Nodes) []string {
 		if startsWithRoot && !isFirst {
 			depth += 1
 		}
-		out := m.renderNode(n, 0, hints, depth)
+		out := m.renderNode(n, hints, depth)
 		if len(out) > 0 {
 			rendered = append(rendered, out)
 		}
@@ -578,41 +696,36 @@ func renderNodes(m Model, nl Nodes) []string {
 	return rendered
 }
 
-func (m Model) render() string {
-	if m.Height == 0 {
-		return ""
+func (m *Model) render() []string {
+	if m.viewport.Height == 0 {
+		return nil
 	}
 	cursor := m.Children()
 	if cursor.Len() == 0 {
-		return ""
+		return nil
 	}
 
-	maxLines := m.bottom()
-	if m.Debug {
-		maxLines -= m.debugNodes.Len()
-	}
-	// NOTE(marius): here we're rendering more lines than we strictly need
+	maxLines := m.viewport.Height
+
 	rendered := renderNodes(m, cursor)
+	lines := make([]string, 0)
 
-	top := clamp(m.top, 0, len(rendered))
+	top := clamp(m.viewport.YOffset, 0, len(rendered))
 	end := clamp(maxLines+top, 0, len(rendered))
 	cropped := rendered[top:end]
-	m.debug("Displaying: pos:%d ren:%d vis:%d/%d[%d:%d]", m.pos, len(rendered), len(cropped), visibleLines(cursor), top, end)
+	m.debug("Position: %d", m.cursor)
+	m.debug("Displaying: ren:%d vis:%d", len(rendered), len(cropped))
+	m.debug("Viewport: h:%d w:%d yoff:%d", m.viewport.Height, m.viewport.Width, m.viewport.YOffset)
 	for i, l := range cropped {
-		if i == m.pos-top {
-			l = lipgloss.Style{}.Reverse(true).Render(l)
+		if i == m.cursor-top {
+			l = m.styles.Selected.Render(l)
+		} else {
+			l = m.styles.Line.Render(l)
 		}
-		m.lines[i] = l
+		lines = append(lines, l)
 	}
 
-	debStart := len(m.lines) - len(m.debugNodes)
-	if m.Debug && debStart >= 0 {
-		for i, n := range m.debugNodes {
-			lineIndx := debStart + i
-			m.lines[lineIndx] = m.renderDebugNode(n)
-		}
-	}
-	return strings.Join(m.lines, "\n")
+	return lines
 }
 
 func clamp(v, low, high int) int {
