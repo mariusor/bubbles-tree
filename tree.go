@@ -341,7 +341,7 @@ func (m *Model) Parent() error {
 	}
 	m.debug("Going to parent: %s", parent)
 	m.t = t
-	walk(m)
+	m.err(walk(m))
 	m.GotoTop()
 
 	n.SetState(n.State() | NodeCollapsed)
@@ -362,7 +362,7 @@ func (m *Model) Advance() error {
 	}
 	m.debug("Advancing to: %s", n.String())
 	m.t = t
-	walk(m)
+	m.err(walk(m))
 	m.GotoTop()
 
 	n.SetState(n.State() ^ NodeCollapsed)
