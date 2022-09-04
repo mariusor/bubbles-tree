@@ -58,7 +58,7 @@ type Node interface {
 // MoveUp moves the selection up by any number of row.
 // It can not go above the first row.
 func (m *Model) MoveUp(n int) {
-	m.cursor = clamp(m.cursor-n, 0, m.tree.Len()-1)
+	m.cursor = clamp(m.cursor-n, 0, min(len(visibleLines(m.tree)), m.viewport.Height)-1)
 	m.LogFn("move %d, new pos: %d", n, m.cursor)
 
 	if m.cursor < m.viewport.YOffset {
@@ -71,7 +71,7 @@ func (m *Model) MoveUp(n int) {
 // MoveDown moves the selection down by any number of row.
 // It can not go below the last row.
 func (m *Model) MoveDown(n int) {
-	m.cursor = clamp(m.cursor+n, 0, m.tree.Len()-1)
+	m.cursor = clamp(m.cursor+n, 0, min(len(visibleLines(m.tree)), m.viewport.Height)-1)
 	m.LogFn("move %d, new pos: %d", n, m.cursor)
 
 	if m.cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
@@ -262,7 +262,8 @@ func (m *Model) Children() Nodes {
 // ToggleExpand toggles the expanded state of the node pointed at by m.cursor
 func (m *Model) ToggleExpand() error {
 	n := m.tree.at(m.cursor)
-	m.LogFn("TODO: expanding: %s", n)
+	n.SetState(n.State() ^ NodeCollapsed)
+	m.UpdateViewport()
 	return nil
 }
 
@@ -301,9 +302,11 @@ func (m *Model) Advance() error {
 func visibleLines(n Nodes) Nodes {
 	visible := make(Nodes, 0)
 	for _, nn := range n {
-		isVisible := nn.State()&NodeVisible == NodeVisible
-		if isVisible {
+		if nn.State()&NodeVisible == NodeVisible {
 			visible = append(visible, nn)
+		}
+		if nn.State()&NodeCollapsible == NodeCollapsible && nn.State()&NodeCollapsed != NodeCollapsed {
+			visible = append(visible, visibleLines(nn.Children())...)
 		}
 	}
 	return visible
@@ -505,7 +508,7 @@ func (m *Model) renderNode(t Node) string {
 	t.SetState(hints)
 
 	render := m.styles.Line.Width(m.Width()).Render
-	if hints&NodeSelected == NodeSelected || selected(m, t) {
+	if selected(m, t) {
 		render = m.styles.Selected.Width(m.Width()).Render
 	}
 	node := render(fmt.Sprintf("%s%s", prefix, name))
@@ -564,7 +567,6 @@ func (m *Model) renderNodes(nl Nodes) []string {
 		if i == len(nl)-1 {
 			hints |= NodeLastChild
 		}
-
 		n.SetState(n.State() | hints)
 		if out := m.renderNode(n); len(out) > 0 {
 			rendered = append(rendered, out)
