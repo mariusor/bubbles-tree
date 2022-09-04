@@ -57,7 +57,7 @@ func main() {
 	}
 
 	log.Printf("starting at %s", path)
-	t := tree.New(buildNodeTree(path, 2))
+	t := tree.New(buildNodeTree(path, depth))
 	m := quittingTree{Model: t}
 
 	m.Model.LogFn = log.Printf
@@ -65,7 +65,7 @@ func main() {
 	initializers := make([]tea.ProgramOption, 0)
 	if debug {
 		nilReader := io.LimitedReader{}
-		initializers = append(initializers /*tea.WithoutRenderer(), */, tea.WithInput(&nilReader))
+		initializers = append(initializers, tea.WithInput(&nilReader))
 	}
 	if err := tea.NewProgram(&m, initializers...).Start(); err != nil {
 		log.Printf("Err: %s", err.Error())

@@ -17,7 +17,7 @@ type pathNode struct {
 }
 
 func (n *pathNode) Parent() tree.Node {
-	if n == nil {
+	if n == nil || n.parent == nil {
 		return nil
 	}
 	return n.parent
@@ -48,6 +48,13 @@ func isUnixHiddenFile(name string) bool {
 
 func buildNodeTree(root string, maxDepth int) tree.Nodes {
 	allNodes := make([]*pathNode, 0)
+
+	rootPath := func(p string) string {
+		if p == "." {
+			return root
+		}
+		return p
+	}
 	fs.WalkDir(os.DirFS(root), ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fs.SkipDir
@@ -65,10 +72,11 @@ func buildNodeTree(root string, maxDepth int) tree.Nodes {
 		}
 
 		st := tree.NodeVisible
-		if p == "." {
-			p = root
+		if d.IsDir() {
+			st |= tree.NodeCollapsible
 		}
-		parent := findNodeByPath(allNodes, filepath.Dir(p))
+		p = rootPath(p)
+		parent := findNodeByPath(allNodes, rootPath(filepath.Dir(p)))
 
 		node := new(pathNode)
 		node.path = p
@@ -79,6 +87,7 @@ func buildNodeTree(root string, maxDepth int) tree.Nodes {
 			allNodes = append(allNodes, node)
 		} else {
 			node.parent = parent
+			node.state |= tree.NodeCollapsed
 			parent.children = append(parent.children, node)
 		}
 		return nil
