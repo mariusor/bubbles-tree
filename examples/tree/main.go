@@ -20,7 +20,8 @@ type quittingTree struct {
 }
 
 func New(fs fs.FS) quittingTree {
-	t := tree.New(&dirFs{fs})
+	nodes, _ := buildNodeTree(fs)
+	t := tree.New(nodes)
 	return quittingTree{Model: t}
 }
 
@@ -43,6 +44,8 @@ func openlog() io.Writer {
 }
 
 func main() {
+	log.SetOutput(openlog())
+
 	path := RootPath
 	if len(os.Args) > 1 {
 		abs, err := filepath.Abs(os.Args[1])
@@ -54,7 +57,6 @@ func main() {
 	}
 	m := New(os.DirFS(path))
 
-	log.SetOutput(openlog())
 	m.Model.LogFn = log.Printf
 
 	if err := tea.NewProgram(&m).Start(); err != nil {

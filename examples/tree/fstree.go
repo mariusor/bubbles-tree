@@ -1,59 +1,102 @@
 package main
 
 import (
-	tree "github.com/mariusor/bubbles-tree"
+	"fmt"
 	"io/fs"
 	"log"
+	"path/filepath"
+	"strings"
+
+	tree "github.com/mariusor/bubbles-tree"
 )
 
-type dirFs struct {
-	fs.FS
+type pathNode struct {
+	parent *pathNode
+	Path   string
+	state  tree.NodeState
+	Nodes  []*pathNode
 }
 
-// Advance moves the Treeish to a new received path,
-// this can return a new Treeish instance at the new path, or perform some other function
-// for the cases where the path doesn't correspond to a Treeish object.
-// Specifically in the case of the filepath Treeish:
-// If a passed path parameter corresponds to a folder, it will return a new Treeish object at the new path
-// If the passed path parameter corresponds to a file, it returns a nil Treeish, but it can execute something else.
-// Eg, When being passed a path that corresponds to a text file, another bubbletea function corresponding to a
-// viewer can be called from here.
-func (d *dirFs) Advance(path string) (tree.Treeish, error) {
-	fi, err := fs.Stat(d, path)
-	if err == nil && fi.IsDir() {
-		s, err := fs.Sub(d, path)
-		log.Printf("subdir: %s", s)
-		return &dirFs{s}, err
+func (n pathNode) GoString() string {
+	s := strings.Builder{}
+	nodeS := fmt.Sprintf("Path: %s [%d]", n.Path, len(n.Nodes))
+	s.WriteString(nodeS)
+	if len(n.Children()) > 0 {
+		s.WriteString(fmt.Sprintf("%#v", n.Children()))
 	}
-	return d, nil
+	s.WriteString("\n")
+	return s.String()
 }
 
-// State returns the NodeState for the received path parameter
-// This is used when rendering the path in the tree view
-func (d *dirFs) State(file string) (tree.NodeState, error) {
-	f, err := fs.Stat(d, file)
-	if err != nil {
-		return tree.NodeError, err
-	}
-	var state tree.NodeState
-	if f.IsDir() {
-		state |= tree.NodeCollapsible
-	}
-	return state, nil
+func (n pathNode) Parent() tree.Node {
+	return n.parent
 }
 
-// Walk loads the elements of current dirFs and returns them as a flat list
-func (d *dirFs) Walk(max int) ([]string, error) {
-	all := make([]string, 0)
+func (n pathNode) String() string {
+	return n.Path
+}
 
-	children, err := fs.ReadDir(d, ".")
-	if err != nil {
-		return nil, err
-	}
+func (n pathNode) Children() tree.Nodes {
+	return treeNodes(n.Nodes)
+}
 
-	for _, dir := range children {
-		all = append(all, dir.Name())
+func (n pathNode) State() tree.NodeState {
+	return n.state
+}
+
+func (n *pathNode) SetState(s tree.NodeState) {
+	n.state = s
+}
+
+func buildNodeTree(root fs.FS) (tree.Nodes, error) {
+	allNodes := make([]*pathNode, 0)
+	fs.WalkDir(root, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fs.SkipDir
+		}
+		log.Printf("path: %s", p)
+		cnt := len(strings.Split(p, "/"))
+		if cnt > 2 {
+			return fs.SkipDir
+		}
+		st := tree.NodeVisible
+		if d.IsDir() {
+			st |= tree.NodeCollapsible
+		}
+		parent := findNodeByPath(allNodes, filepath.Dir(p))
+		node := pathNode{
+			parent: parent,
+			Path:   p,
+			state:  st,
+			Nodes:  make([]*pathNode, 0),
+		}
+		if parent == nil {
+			allNodes = append(allNodes, &node)
+		} else {
+			parent.Nodes = append(parent.Nodes, &node)
+		}
+		return nil
+	})
+
+	return treeNodes(allNodes), nil
+}
+
+func treeNodes(pathNodes []*pathNode) tree.Nodes {
+	nodes := make(tree.Nodes, len(pathNodes))
+	for i, n := range pathNodes {
+		nodes[i] = n
 	}
-	log.Printf("read %d files", len(all))
-	return all, nil
+	return nodes
+}
+
+func findNodeByPath(nodes []*pathNode, path string) *pathNode {
+	for _, node := range nodes {
+		if filepath.Clean(node.String()) == filepath.Clean(path) {
+			return node
+		}
+		if child := findNodeByPath(node.Nodes, path); child != nil {
+			return child
+		}
+	}
+	return nil
 }

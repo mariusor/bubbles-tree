@@ -2,11 +2,8 @@ package tree
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -48,24 +45,6 @@ var (
 	defaultSelectedStyle = defaultStyle.Reverse(true)
 )
 
-type Treeish interface {
-	// Advance moves the Treeish to a new received path,
-	// this can return a new Treeish instance at the new path, or perform some other function
-	// for the cases where the path doesn't correspond to a Treeish object.
-	// Specifically in the case of the filepath Treeish:
-	// If a passed path parameter corresponds to a folder, it will return a new Treeish object at the new path
-	// If the passed path parameter corresponds to a file, it returns a nil Treeish, but it can execute something else.
-	// Eg, When being passed a path that corresponds to a text file, another bubbletea function corresponding to a
-	// viewer can be called from here.
-	Advance(string) (Treeish, error)
-	// State returns the NodeState for the received path parameter
-	// This is used when rendering the path in the tree view
-	State(string) (NodeState, error)
-
-	// Walk loads the elements of current Treeish and returns them as a flat list of maximum elements
-	Walk(int) ([]string, error)
-}
-
 func (m *Model) debug(s string, params ...interface{}) {
 	m.LogFn(s, params...)
 }
@@ -76,39 +55,8 @@ func (m *Model) err(err error) {
 	}
 }
 
-type pathNode struct {
-	Path  string
-	state NodeState
-	Nodes Nodes
-}
-
-func (n pathNode) GoString() string {
-	s := strings.Builder{}
-	nodeS := fmt.Sprintf("Path: %s [%d]\n", n.Path, len(n.Children()))
-	s.WriteString(nodeS)
-	if len(n.Children()) > 0 {
-		s.WriteString(fmt.Sprintf("%#v\n", n.Children()))
-	}
-	return s.String()
-}
-
-func (n pathNode) String() string {
-	return n.Path
-}
-
-func (n pathNode) Children() Nodes {
-	return n.Nodes
-}
-
-func (n pathNode) State() NodeState {
-	return n.state
-}
-
-func (n *pathNode) SetState(s NodeState) {
-	n.state = s
-}
-
 type Node interface {
+	Parent() Node
 	String() string
 	Children() Nodes
 	State() NodeState
@@ -300,13 +248,11 @@ type Model struct {
 
 	tree  Nodes
 	LogFn logFn
-
-	t Treeish
 }
 
-func New(t Treeish) Model {
+func New(t Nodes) Model {
 	return Model{
-		t: t,
+		tree: t,
 
 		viewport: viewport.New(0, 1),
 		focus:    true,
@@ -330,18 +276,13 @@ func (m *Model) ToggleExpand() error {
 
 // Parent moves the whole Treeish to the parent node
 func (m *Model) Parent() error {
-	n := m.tree.at(0)
+	n := m.tree.at(0).Parent()
 	if n == nil {
 		return fmt.Errorf("invalid node at pos %d", m.cursor)
 	}
-	parent := path.Dir(n.String())
-	t, err := m.t.Advance(parent)
-	if err != nil {
-		return err
-	}
+	parent := n
+	m.Advance()
 	m.debug("Going to parent: %s", parent)
-	m.t = t
-	m.err(walk(m))
 	m.GotoTop()
 
 	n.SetState(n.State() | NodeCollapsed)
@@ -356,13 +297,8 @@ func (m *Model) Advance() error {
 		return fmt.Errorf("invalid node at pos %d", m.cursor)
 	}
 
-	t, err := m.t.Advance(n.String())
-	if err != nil {
-		return err
-	}
 	m.debug("Advancing to: %s", n.String())
-	m.t = t
-	m.err(walk(m))
+	m.tree = n.Children()
 	m.GotoTop()
 
 	n.SetState(n.State() ^ NodeCollapsed)
@@ -412,91 +348,12 @@ func (m *Model) Cursor() int {
 type Msg string
 
 func (m *Model) init() tea.Msg {
-	m.err(walk(m))
 	m.UpdateViewport()
 	return Msg("initialized")
 }
 
 func (m *Model) Init() tea.Cmd {
 	return m.init
-}
-
-func findNodeByPath(nodes Nodes, path string) Node {
-	for _, node := range nodes {
-		if filepath.Clean(node.String()) == filepath.Clean(path) {
-			return node
-		}
-		if child := findNodeByPath(node.Children(), path); child != nil {
-			return child
-		}
-	}
-	return nil
-}
-
-func buildNodeTree(t Treeish, paths []string) (Nodes, error) {
-	if len(paths) == 0 {
-		return nil, nil
-	}
-	flatNodes := make(Nodes, len(paths))
-	top := paths[0]
-	topCnt := len(strings.Split(top, "/"))
-	for i, p := range paths {
-		st, _ := t.State(p)
-		cnt := len(strings.Split(p, "/"))
-		if st&NodeCollapsible == NodeCollapsible && i != 0 {
-			st |= NodeCollapsed
-		}
-		if cnt-topCnt <= 1 {
-			st |= NodeVisible
-		}
-		flatNodes[i] = &pathNode{
-			Path:  p,
-			state: st,
-		}
-	}
-	sort.Slice(flatNodes, func(i, j int) bool {
-		n1 := flatNodes[i]
-		n2 := flatNodes[j]
-		v1 := n1.State()&NodeCollapsible == NodeCollapsible
-		v2 := n2.State()&NodeCollapsible == NodeCollapsible
-		if v1 == v2 {
-			return n1.String() < n2.String()
-		}
-		return v1 && !v2
-	})
-
-	nodes := make(Nodes, 0)
-	for _, n := range flatNodes {
-		var ppath string
-		if u, err := url.Parse(n.String()); err == nil {
-			ppath, _ = path.Split(u.Path)
-		} else {
-			ppath, _ = path.Split(n.String())
-		}
-		if parent := findNodeByPath(flatNodes, ppath); parent != nil && ppath != parent.String() {
-			if p, ok := parent.(*pathNode); ok {
-				p.Nodes = append(p.Nodes, n)
-			}
-		} else {
-			nodes = append(nodes, n)
-		}
-	}
-	return nodes, nil
-}
-
-func walk(m *Model) error {
-	//m.debug("walking treeish: %v", m.t)
-	paths, err := m.t.Walk(m.viewport.Height)
-	if err != nil {
-		m.err(err)
-	}
-	//m.debug("loaded %d paths", len(paths))
-	m.tree, err = buildNodeTree(m.t, paths)
-	if err != nil {
-		m.err(err)
-	}
-	//m.debug("built %d nodes", m.tree.Len())
-	return nil
 }
 
 // Focused returns the focus state of the table.
@@ -621,6 +478,9 @@ func (m *Model) renderNodes(nl Nodes) []string {
 
 	nlLen := len(nl)
 	firstInTree := m.tree.at(0)
+	if firstInTree == nil {
+		return nil
+	}
 	startsWithRoot := false
 	if firstInTree.String() == "/" {
 		startsWithRoot = true
@@ -666,12 +526,12 @@ func (m *Model) render() []string {
 	if m.viewport.Height == 0 {
 		return nil
 	}
-	cursor := m.Children()
-	if cursor.Len() == 0 {
+	nodes := m.Children()
+	if nodes.Len() == 0 {
 		return nil
 	}
 
-	rendered := m.renderNodes(cursor)
+	rendered := m.renderNodes(nodes)
 	lines := make([]string, 0)
 
 	for i, l := range rendered {
