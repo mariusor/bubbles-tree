@@ -14,6 +14,17 @@ import (
 type NodeState int
 
 const (
+	BoxDrawingsVerticalAndRight = "├"
+	BoxDrawingsVertical         = "│"
+	BoxDrawingsUpAndRight       = "└"
+	BoxDrawingsDownAndRight     = "┌"
+	BoxDrawingsHorizontal       = "─"
+
+	SquaredPlus  = "⊞"
+	SquaredMinus = "⊟"
+
+	Ellipsis = "…"
+
 	NodeError NodeState = -1
 	NodeNone  NodeState = 0
 
@@ -29,19 +40,6 @@ const (
 	NodeSingleChild
 	// NodeLastChild shows the node to be the last in the children list
 	NodeLastChild
-)
-
-const (
-	BoxDrawingsVerticalAndRight = "├"
-	BoxDrawingsVertical         = "│"
-	BoxDrawingsUpAndRight       = "└"
-	BoxDrawingsDownAndRight     = "┌"
-	BoxDrawingsHorizontal       = "─"
-
-	SquaredPlus  = "⊞"
-	SquaredMinus = "⊟"
-
-	Ellipsis = "…"
 )
 
 var (
@@ -300,16 +298,15 @@ func (m *Model) Advance() error {
 	return nil
 }
 
-func visibleLines(n Nodes) int {
-	count := 0
+func visibleLines(n Nodes) Nodes {
+	visible := make(Nodes, 0)
 	for _, nn := range n {
-		visible := nn.State()&NodeVisible == NodeVisible
-		if visible {
-			count++
+		isVisible := nn.State()&NodeVisible == NodeVisible
+		if isVisible {
+			visible = append(visible, nn)
 		}
-		count += visibleLines(nn.Children())
 	}
-	return count
+	return visible
 }
 
 // SetWidth sets the width of the viewport of the table.
@@ -449,6 +446,24 @@ func skipVertical(n Node, depth int) bool {
 	return n.State()&NodeSingleChild == NodeSingleChild
 }
 
+func pos(nodes Nodes, n Node) int {
+	p := 0
+	for _, node := range nodes {
+		if node == n {
+			break
+		}
+		p++
+		if len(node.Children()) > 0 && node.State()&NodeCollapsed != NodeCollapsed {
+			p += pos(visibleLines(node.Children()), n)
+		}
+	}
+	return p
+}
+
+func selected(m *Model, n Node) bool {
+	return pos(m.tree, n) == m.cursor
+}
+
 func (m *Model) renderNode(t Node) string {
 	style := defaultStyle
 
@@ -490,7 +505,7 @@ func (m *Model) renderNode(t Node) string {
 	t.SetState(hints)
 
 	render := m.styles.Line.Width(m.Width()).Render
-	if hints&NodeSelected == NodeSelected {
+	if hints&NodeSelected == NodeSelected || selected(m, t) {
 		render = m.styles.Selected.Width(m.Width()).Render
 	}
 	node := render(fmt.Sprintf("%s%s", prefix, name))
