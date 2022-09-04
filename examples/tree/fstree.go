@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"io/fs"
-	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,36 +10,31 @@ import (
 )
 
 type pathNode struct {
-	parent *pathNode
-	Path   string
-	state  tree.NodeState
-	Nodes  []*pathNode
+	parent   *pathNode
+	path     string
+	state    tree.NodeState
+	children []*pathNode
 }
 
-func (n pathNode) GoString() string {
-	s := strings.Builder{}
-	nodeS := fmt.Sprintf("Path: %s [%d]", n.Path, len(n.Nodes))
-	s.WriteString(nodeS)
-	if len(n.Children()) > 0 {
-		s.WriteString(fmt.Sprintf("%#v", n.Children()))
+func (n *pathNode) Parent() tree.Node {
+	if n == nil {
+		return nil
 	}
-	s.WriteString("\n")
-	return s.String()
-}
-
-func (n pathNode) Parent() tree.Node {
 	return n.parent
 }
 
-func (n pathNode) String() string {
-	return n.Path
+func (n *pathNode) Name() string {
+	if n.parent == nil {
+		return n.path
+	}
+	return filepath.Base(n.path)
 }
 
-func (n pathNode) Children() tree.Nodes {
-	return treeNodes(n.Nodes)
+func (n *pathNode) Children() tree.Nodes {
+	return treeNodes(n.children)
 }
 
-func (n pathNode) State() tree.NodeState {
+func (n *pathNode) State() tree.NodeState {
 	return n.state
 }
 
@@ -48,37 +42,49 @@ func (n *pathNode) SetState(s tree.NodeState) {
 	n.state = s
 }
 
-func buildNodeTree(root fs.FS) (tree.Nodes, error) {
+func isUnixHiddenFile(name string) bool {
+	return len(name) > 2 && (name[0] == '.' || name[:2] == "..")
+}
+
+func buildNodeTree(root string, maxDepth int) tree.Nodes {
 	allNodes := make([]*pathNode, 0)
-	fs.WalkDir(root, ".", func(p string, d fs.DirEntry, err error) error {
+	fs.WalkDir(os.DirFS(root), ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fs.SkipDir
 		}
-		log.Printf("path: %s", p)
-		cnt := len(strings.Split(p, "/"))
-		if cnt > 2 {
+		if isUnixHiddenFile(d.Name()) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+
+		cnt := len(strings.Split(p, string(os.PathSeparator)))
+		if maxDepth != -1 && cnt > maxDepth {
 			return fs.SkipDir
 		}
+
 		st := tree.NodeVisible
-		if d.IsDir() {
-			st |= tree.NodeCollapsible
+		if p == "." {
+			p = root
 		}
 		parent := findNodeByPath(allNodes, filepath.Dir(p))
-		node := pathNode{
-			parent: parent,
-			Path:   p,
-			state:  st,
-			Nodes:  make([]*pathNode, 0),
-		}
+
+		node := new(pathNode)
+		node.path = p
+		node.state = st
+		node.children = make([]*pathNode, 0)
+
 		if parent == nil {
-			allNodes = append(allNodes, &node)
+			allNodes = append(allNodes, node)
 		} else {
-			parent.Nodes = append(parent.Nodes, &node)
+			node.parent = parent
+			parent.children = append(parent.children, node)
 		}
 		return nil
 	})
 
-	return treeNodes(allNodes), nil
+	return treeNodes(allNodes)
 }
 
 func treeNodes(pathNodes []*pathNode) tree.Nodes {
@@ -91,10 +97,10 @@ func treeNodes(pathNodes []*pathNode) tree.Nodes {
 
 func findNodeByPath(nodes []*pathNode, path string) *pathNode {
 	for _, node := range nodes {
-		if filepath.Clean(node.String()) == filepath.Clean(path) {
+		if filepath.Clean(node.path) == filepath.Clean(path) {
 			return node
 		}
-		if child := findNodeByPath(node.Nodes, path); child != nil {
+		if child := findNodeByPath(node.children, path); child != nil {
 			return child
 		}
 	}

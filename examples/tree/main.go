@@ -1,9 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -17,12 +17,6 @@ const RootPath = "/tmp"
 
 type quittingTree struct {
 	tree.Model
-}
-
-func New(fs fs.FS) quittingTree {
-	nodes, _ := buildNodeTree(fs)
-	t := tree.New(nodes)
-	return quittingTree{Model: t}
 }
 
 func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
@@ -44,22 +38,36 @@ func openlog() io.Writer {
 }
 
 func main() {
+	var debug bool
+	var depth int
+	flag.IntVar(&depth, "depth", 2, "The maximum depth to read the directory structure")
+	flag.BoolVar(&debug, "debug", false, "Are we debugging")
+	flag.Parse()
+
 	log.SetOutput(openlog())
 
 	path := RootPath
-	if len(os.Args) > 1 {
-		abs, err := filepath.Abs(os.Args[1])
+	if flag.NArg() > 0 {
+		abs, err := filepath.Abs(flag.Arg(0))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s", err)
 			os.Exit(1)
 		}
 		path = abs
 	}
-	m := New(os.DirFS(path))
+
+	log.Printf("starting at %s", path)
+	t := tree.New(buildNodeTree(path, 2))
+	m := quittingTree{Model: t}
 
 	m.Model.LogFn = log.Printf
 
-	if err := tea.NewProgram(&m).Start(); err != nil {
+	initializers := make([]tea.ProgramOption, 0)
+	if debug {
+		nilReader := io.LimitedReader{}
+		initializers = append(initializers /*tea.WithoutRenderer(), */, tea.WithInput(&nilReader))
+	}
+	if err := tea.NewProgram(&m, initializers...).Start(); err != nil {
 		log.Printf("Err: %s", err.Error())
 	}
 }
