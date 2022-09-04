@@ -2,8 +2,6 @@ package tree
 
 import (
 	"fmt"
-	"os"
-	"path"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -16,15 +14,21 @@ import (
 type NodeState int
 
 const (
+	NodeError NodeState = -1
+	NodeNone  NodeState = 0
+
 	// NodeCollapsed hints that the current node is collapsed
 	NodeCollapsed NodeState = 1 << iota
+	NodeSelected
 	// NodeCollapsible hints that the current node can be collapsed
 	NodeCollapsible
 	// NodeVisible hints that the current node is ready to be displayed
 	NodeVisible
-	NodeError
-
-	NodeNone = 0
+	NodeRootNode
+	// NodeSingleChild shows the node to be a single node in it's parent children list
+	NodeSingleChild
+	// NodeLastChild shows the node to be the last in the children list
+	NodeLastChild
 )
 
 const (
@@ -45,19 +49,9 @@ var (
 	defaultSelectedStyle = defaultStyle.Reverse(true)
 )
 
-func (m *Model) debug(s string, params ...interface{}) {
-	m.LogFn(s, params...)
-}
-
-func (m *Model) err(err error) {
-	if err != nil {
-		m.LogFn("error: %s", err.Error())
-	}
-}
-
 type Node interface {
 	Parent() Node
-	String() string
+	Name() string
 	Children() Nodes
 	State() NodeState
 	SetState(NodeState)
@@ -67,10 +61,10 @@ type Node interface {
 // It can not go above the first row.
 func (m *Model) MoveUp(n int) {
 	m.cursor = clamp(m.cursor-n, 0, m.tree.Len()-1)
-	m.debug("move %d, new pos: %d", n, m.cursor)
+	m.LogFn("move %d, new pos: %d", n, m.cursor)
 
 	if m.cursor < m.viewport.YOffset {
-		m.debug("viewport adjustment %d", n)
+		m.LogFn("viewport adjustment %d", n)
 		m.viewport.LineUp(n)
 	}
 	m.UpdateViewport()
@@ -80,10 +74,10 @@ func (m *Model) MoveUp(n int) {
 // It can not go below the last row.
 func (m *Model) MoveDown(n int) {
 	m.cursor = clamp(m.cursor+n, 0, m.tree.Len()-1)
-	m.debug("move %d, new pos: %d", n, m.cursor)
+	m.LogFn("move %d, new pos: %d", n, m.cursor)
 
 	if m.cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
-		m.debug("viewport adjustment %d", n)
+		m.LogFn("viewport adjustment %d", n)
 		m.viewport.LineDown(n)
 	}
 	m.UpdateViewport()
@@ -282,7 +276,7 @@ func (m *Model) Parent() error {
 	}
 	parent := n
 	m.Advance()
-	m.debug("Going to parent: %s", parent)
+	m.LogFn("Going to parent: %s", parent)
 	m.GotoTop()
 
 	n.SetState(n.State() | NodeCollapsed)
@@ -297,7 +291,7 @@ func (m *Model) Advance() error {
 		return fmt.Errorf("invalid node at pos %d", m.cursor)
 	}
 
-	m.debug("Advancing to: %s", n.String())
+	m.LogFn("Advancing to: %s", n)
 	m.tree = n.Children()
 	m.GotoTop()
 
@@ -415,7 +409,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if err != nil {
-		m.err(err)
+		m.LogFn("error: %s", err)
 	}
 	return m, nil
 }
@@ -425,42 +419,93 @@ func (m *Model) View() string {
 	return m.viewport.View()
 }
 
-const (
-	NodeFirstChild = 1 << iota
-	NodeLastChild
-)
+func getDepth(n Node) int {
+	d := 0
+	for {
+		if n == nil || n.Parent() == nil {
+			break
+		}
+		d++
+		n = n.Parent()
+	}
+	return d
+}
 
-func (m *Model) renderNode(t Node, nodeHints, depth int) string {
+func skipVertical(n Node, depth int) bool {
+	if n == nil {
+		return false
+	}
+	if depth == 0 {
+		return false
+	}
+	if n.Parent() == nil {
+		return false
+	}
+	for i := 0; i < depth; i++ {
+		if n = n.Parent(); n == nil {
+			return false
+		}
+	}
+	return n.State()&NodeSingleChild == NodeSingleChild
+}
+
+func (m *Model) renderNode(t Node) string {
 	style := defaultStyle
+
+	prefix := ""
 	annotation := ""
 	padding := ""
 
-	if t.State()&NodeCollapsible == NodeCollapsible {
+	hints := t.State()
+	if hints&NodeCollapsible == NodeCollapsible {
 		annotation = SquaredMinus
-		if t.State()&NodeCollapsed == NodeCollapsed {
+		if hints&NodeCollapsed == NodeCollapsed {
 			annotation = SquaredPlus
 		}
 	}
 
+	depth := getDepth(t)
 	for i := 0; i < depth; i++ {
-		padding += "  " // 2 is the length of a tree opener
+		padding += "  "
+		if skipVertical(t, i) {
+			padding += " "
+		} else if i < depth-1 {
+			padding += BoxDrawingsVertical
+		}
 	}
-	if nodeHints&NodeLastChild == NodeLastChild {
-		padding += BoxDrawingsUpAndRight
-	} else if nodeHints&NodeFirstChild == NodeFirstChild {
-		padding += BoxDrawingsUpAndRight
-	} else {
-		padding += BoxDrawingsVerticalAndRight
+	if hints&NodeRootNode != NodeRootNode {
+		if hints&NodeLastChild == NodeLastChild {
+			padding += BoxDrawingsUpAndRight
+		} else if hints&NodeSingleChild == NodeSingleChild {
+			padding += BoxDrawingsUpAndRight
+		} else {
+			padding += BoxDrawingsVerticalAndRight
+		}
+		padding += BoxDrawingsHorizontal
+		prefix = fmt.Sprintf("%s %-2s", padding, annotation)
 	}
-	padding += BoxDrawingsHorizontal
 
-	base, name := path.Split(t.String())
-	if name == "" {
-		name = base
-	}
-	prefix := fmt.Sprintf("%s%-2s", padding, annotation)
+	name := t.Name()
 	name = ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
-	return style.Width(m.viewport.Width).Render(fmt.Sprintf("%s%s", prefix, name))
+	t.SetState(hints)
+
+	render := m.styles.Line.Width(m.Width()).Render
+	if hints&NodeSelected == NodeSelected {
+		render = m.styles.Selected.Width(m.Width()).Render
+	}
+	node := render(fmt.Sprintf("%s%s", prefix, name))
+
+	if collapsed := hints&NodeCollapsed == NodeCollapsed; !collapsed {
+		if len(t.Children()) > 0 {
+			renderedChildren := m.renderNodes(t.Children())
+			childNodes := make([]string, len(renderedChildren))
+			for i, child := range renderedChildren {
+				childNodes[i] = style.Width(m.viewport.Width).Render(child)
+			}
+			node = lipgloss.JoinVertical(lipgloss.Left, node, lipgloss.JoinVertical(lipgloss.Left, childNodes...))
+		}
+	}
+	return node
 }
 
 func ellipsize(s string, w int) string {
@@ -474,48 +519,40 @@ func ellipsize(s string, w int) string {
 }
 
 func (m *Model) renderNodes(nl Nodes) []string {
-	rendered := make([]string, 0)
+	if len(nl) == 0 {
+		return nil
+	}
 
-	nlLen := len(nl)
 	firstInTree := m.tree.at(0)
 	if firstInTree == nil {
 		return nil
 	}
-	startsWithRoot := false
-	if firstInTree.String() == "/" {
-		startsWithRoot = true
-	}
-	topDepth := len(strings.Split(firstInTree.String(), "/"))
+	rendered := make([]string, 0)
 
+	nodeIsSingleChild := len(nl) == 1
 	for i, n := range nl {
 		visible := n.State()&NodeVisible == NodeVisible
 		if !visible {
 			continue
 		}
-		isFirst := firstInTree == n
 
-		depth := len(strings.Split(n.String(), string(os.PathSeparator))) - topDepth
-
-		hints := 0
-		if i == 0 && isFirst {
-			hints = NodeFirstChild
-		} else if i+1 == nlLen {
+		var hints NodeState = 0
+		if n == firstInTree {
+			hints |= NodeRootNode
+		}
+		if len(n.Children()) > 0 {
+			hints |= NodeCollapsible
+		}
+		if nodeIsSingleChild {
+			hints |= NodeSingleChild
+		}
+		if i == len(nl)-1 {
 			hints |= NodeLastChild
 		}
 
-		if startsWithRoot && !isFirst {
-			depth += 1
-		}
-		out := m.renderNode(n, hints, depth)
-		if len(out) > 0 {
+		n.SetState(n.State() | hints)
+		if out := m.renderNode(n); len(out) > 0 {
 			rendered = append(rendered, out)
-		}
-
-		if collapsed := n.State()&NodeCollapsed == NodeCollapsed; !collapsed {
-			if childLen := visibleLines(n.Children()); childLen > 0 {
-				renderedChildren := m.renderNodes(n.Children())
-				rendered = append(rendered, renderedChildren...)
-			}
 		}
 	}
 
@@ -526,24 +563,8 @@ func (m *Model) render() []string {
 	if m.viewport.Height == 0 {
 		return nil
 	}
-	nodes := m.Children()
-	if nodes.Len() == 0 {
-		return nil
-	}
 
-	rendered := m.renderNodes(nodes)
-	lines := make([]string, 0)
-
-	for i, l := range rendered {
-		if i == m.cursor {
-			l = m.styles.Selected.Render(l)
-		} else {
-			l = m.styles.Line.Render(l)
-		}
-		lines = append(lines, l)
-	}
-
-	return lines
+	return m.renderNodes(m.Children())
 }
 
 func clamp(v, low, high int) int {
