@@ -361,7 +361,6 @@ func (m *Model) Cursor() int {
 type Msg string
 
 func (m *Model) init() tea.Msg {
-	m.UpdateViewport()
 	return Msg("initialized")
 }
 
@@ -396,9 +395,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var err error
 
 	switch msg := msg.(type) {
+	case Msg:
+		m.setCurrentNode()
+		m.UpdateViewport()
 	case tea.WindowSizeMsg:
 		m.SetHeight(msg.Height)
 		m.SetWidth(msg.Width)
+		m.setCurrentNode()
+		m.UpdateViewport()
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.KeyMap.Expand):
