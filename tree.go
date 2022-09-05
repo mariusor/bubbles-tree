@@ -58,37 +58,41 @@ type Node interface {
 // MoveUp moves the selection up by any number of row.
 // It can not go above the first row.
 func (m *Model) MoveUp(n int) {
-	m.cursor = clamp(m.cursor-n, 0, min(len(visibleLines(m.tree)), m.viewport.Height)-1)
+	m.cursor = clamp(m.cursor-n, 0, len(visibleLines(m.tree))-1)
 	m.LogFn("move %d, new pos: %d", n, m.cursor)
 
 	if m.cursor < m.viewport.YOffset {
 		m.LogFn("viewport adjustment %d", n)
 		m.viewport.LineUp(n)
 	}
+	m.setCurrentNode()
 	m.UpdateViewport()
 }
 
 // MoveDown moves the selection down by any number of row.
 // It can not go below the last row.
 func (m *Model) MoveDown(n int) {
-	m.cursor = clamp(m.cursor+n, 0, min(len(visibleLines(m.tree)), m.viewport.Height)-1)
+	m.cursor = clamp(m.cursor+n, 0, len(visibleLines(m.tree))-1)
 	m.LogFn("move %d, new pos: %d", n, m.cursor)
 
 	if m.cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
 		m.LogFn("viewport adjustment %d", n)
 		m.viewport.LineDown(n)
 	}
+	m.setCurrentNode()
 	m.UpdateViewport()
 }
 
 // GotoTop moves the selection to the first row.
 func (m *Model) GotoTop() {
 	m.MoveUp(m.cursor)
+	m.setCurrentNode()
 }
 
 // GotoBottom moves the selection to the last row.
 func (m *Model) GotoBottom() {
 	m.MoveDown(m.tree.Len())
+	m.setCurrentNode()
 }
 
 type Nodes []Node
@@ -105,15 +109,21 @@ func (n Nodes) Len() int {
 }
 
 func (n Nodes) at(i int) Node {
-	for j, p := range n {
-		if j == i && p.State()&NodeVisible == NodeVisible {
+	j := 0
+	for _, p := range n {
+		if p.State()&NodeVisible != NodeVisible {
+			continue
+		}
+		if j == i {
 			return p
 		}
-		if p.Children() != nil {
+		if p.Children() != nil && p.State()&NodeCollapsed != NodeCollapsed {
 			if nn := p.Children().at(i - j - 1); nn != nil {
 				return nn
 			}
+			j += len(visibleLines(p.Children()))
 		}
+		j++
 	}
 	return nil
 }
@@ -216,6 +226,11 @@ func (m *Model) SetStyles(s Styles) {
 	m.UpdateViewport()
 }
 
+func (m *Model) setCurrentNode() {
+	current := m.tree.at(m.cursor)
+	current.SetState(current.State() | NodeSelected)
+}
+
 // UpdateViewport updates the list content based on the previously defined
 // columns and rows.
 func (m *Model) UpdateViewport() {
@@ -263,6 +278,7 @@ func (m *Model) Children() Nodes {
 func (m *Model) ToggleExpand() error {
 	n := m.tree.at(m.cursor)
 	n.SetState(n.State() ^ NodeCollapsed)
+	m.setCurrentNode()
 	m.UpdateViewport()
 	return nil
 }
@@ -271,14 +287,15 @@ func (m *Model) ToggleExpand() error {
 func (m *Model) Parent() error {
 	n := m.tree.at(0).Parent()
 	if n == nil {
-		return fmt.Errorf("invalid node at pos %d", m.cursor)
+		return fmt.Errorf("invalid parent node")
 	}
-	parent := n
-	m.Advance()
-	m.LogFn("Going to parent: %s", parent)
-	m.GotoTop()
+	m.LogFn("Going to parent: %s", n)
+
+	m.tree = n.Children()
 
 	n.SetState(n.State() | NodeCollapsed)
+	m.GotoTop()
+
 	m.UpdateViewport()
 	return nil
 }
@@ -292,9 +309,10 @@ func (m *Model) Advance() error {
 
 	m.LogFn("Advancing to: %s", n)
 	m.tree = n.Children()
-	m.GotoTop()
 
 	n.SetState(n.State() ^ NodeCollapsed)
+	m.GotoTop()
+
 	m.UpdateViewport()
 	return nil
 }
@@ -302,9 +320,10 @@ func (m *Model) Advance() error {
 func visibleLines(n Nodes) Nodes {
 	visible := make(Nodes, 0)
 	for _, nn := range n {
-		if nn.State()&NodeVisible == NodeVisible {
-			visible = append(visible, nn)
+		if nn.State()&NodeVisible != NodeVisible {
+			continue
 		}
+		visible = append(visible, nn)
 		if nn.State()&NodeCollapsible == NodeCollapsible && nn.State()&NodeCollapsed != NodeCollapsed {
 			visible = append(visible, visibleLines(nn.Children())...)
 		}
@@ -449,24 +468,6 @@ func skipVertical(n Node, depth int) bool {
 	return n.State()&NodeSingleChild == NodeSingleChild
 }
 
-func pos(nodes Nodes, n Node) int {
-	p := 0
-	for _, node := range nodes {
-		if node == n {
-			break
-		}
-		p++
-		if len(node.Children()) > 0 && node.State()&NodeCollapsed != NodeCollapsed {
-			p += pos(visibleLines(node.Children()), n)
-		}
-	}
-	return p
-}
-
-func selected(m *Model, n Node) bool {
-	return pos(m.tree, n) == m.cursor
-}
-
 func (m *Model) renderNode(t Node) string {
 	style := defaultStyle
 
@@ -508,8 +509,9 @@ func (m *Model) renderNode(t Node) string {
 	t.SetState(hints)
 
 	render := m.styles.Line.Width(m.Width()).Render
-	if selected(m, t) {
+	if hints&NodeSelected == NodeSelected {
 		render = m.styles.Selected.Width(m.Width()).Render
+		t.SetState(hints ^ NodeSelected)
 	}
 	node := render(fmt.Sprintf("%s%s", prefix, name))
 
