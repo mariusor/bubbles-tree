@@ -14,16 +14,18 @@ import (
 type NodeState int
 
 const (
-	BoxDrawingsVerticalAndRight = "├"
-	BoxDrawingsVertical         = "│"
-	BoxDrawingsUpAndRight       = "└"
-	BoxDrawingsDownAndRight     = "┌"
+	EmptyPadding = "   "
+
+	BoxDrawingsDownAndRight     = " ┌─"
+	BoxDrawingsVertical         = " │ "
+	BoxDrawingsVerticalAndRight = " ├─"
+	BoxDrawingsUpAndRight       = " └─"
 	BoxDrawingsHorizontal       = "─"
 
-	SquaredPlus  = "⊞"
-	SquaredMinus = "⊟"
-
-	Ellipsis = "…"
+	SquaredPlus     = "⊞"
+	SquaredMinus    = "⊟"
+	RightwardsArrow = "→"
+	Ellipsis        = "…"
 
 	NodeError NodeState = -1
 	NodeNone  NodeState = 0
@@ -454,22 +456,50 @@ func getDepth(n Node) int {
 	return d
 }
 
-func skipVertical(n Node, depth int) bool {
+func getTreeSymbolForPos(n Node, pos, maxDepth int) string {
+	if !showTreeSymbolAtPos(n, pos, maxDepth) {
+		return EmptyPadding
+	}
+	if pos < maxDepth {
+		return BoxDrawingsVertical
+	}
+	hints := n.State()
+	if hints&NodeLastChild == NodeLastChild {
+		return BoxDrawingsUpAndRight
+	} else if hints&NodeSingleChild == NodeSingleChild {
+		return BoxDrawingsUpAndRight
+	}
+	return BoxDrawingsVerticalAndRight
+}
+
+func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
 	if n == nil {
 		return false
 	}
-	if depth == 0 {
+	if pos > maxDepth {
+		//panic("We shouldn't try to compute tree symbols for a position larger than the current node's parent depth")
 		return false
 	}
-	if n.Parent() == nil {
-		return false
+	if maxDepth == pos {
+		return true
 	}
-	for i := 0; i < depth; i++ {
+	parentInPos := maxDepth - pos
+	for i := 0; i < parentInPos; i++ {
 		if n = n.Parent(); n == nil {
 			return false
 		}
 	}
-	return n.State()&NodeSingleChild == NodeSingleChild
+	return !(n.State()&NodeSingleChild == NodeSingleChild || n.State()&NodeLastChild == NodeLastChild)
+}
+
+func drawTreeElementsForNode(t Node) string {
+	maxDepth := getDepth(t)
+
+	treeSymbolsPrefix := strings.Builder{}
+	for i := 0; i <= maxDepth; i++ {
+		treeSymbolsPrefix.WriteString(getTreeSymbolForPos(t, i, maxDepth))
+	}
+	return treeSymbolsPrefix.String()
 }
 
 func (m *Model) renderNode(t Node) string {
@@ -477,9 +507,10 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix := ""
 	annotation := ""
-	padding := ""
 
+	name := t.Name()
 	hints := t.State()
+
 	if hints&NodeCollapsible == NodeCollapsible {
 		annotation = SquaredMinus
 		if hints&NodeCollapsed == NodeCollapsed {
@@ -487,28 +518,8 @@ func (m *Model) renderNode(t Node) string {
 		}
 	}
 
-	depth := getDepth(t)
-	for i := 0; i < depth; i++ {
-		padding += "  "
-		if skipVertical(t, i) {
-			padding += " "
-		} else if i < depth-1 {
-			padding += BoxDrawingsVertical
-		}
-	}
-	if hints&NodeRootNode != NodeRootNode {
-		if hints&NodeLastChild == NodeLastChild {
-			padding += BoxDrawingsUpAndRight
-		} else if hints&NodeSingleChild == NodeSingleChild {
-			padding += BoxDrawingsUpAndRight
-		} else {
-			padding += BoxDrawingsVerticalAndRight
-		}
-		padding += BoxDrawingsHorizontal
-		prefix = fmt.Sprintf("%s %-2s", padding, annotation)
-	}
+	prefix = fmt.Sprintf("%s %-2s", drawTreeElementsForNode(t), annotation)
 
-	name := t.Name()
 	name = ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
 	t.SetState(hints)
 
