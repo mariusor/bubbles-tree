@@ -60,7 +60,7 @@ type Node interface {
 // MoveUp moves the selection up by any number of row.
 // It can not go above the first row.
 func (m *Model) MoveUp(n int) {
-	m.cursor = clamp(m.cursor-n, 0, len(visibleLines(m.tree))-1)
+	m.cursor = clamp(m.cursor-n, 0, len(m.tree.visibleNodes())-1)
 
 	if m.cursor < m.viewport.YOffset {
 		m.viewport.LineUp(n)
@@ -72,7 +72,7 @@ func (m *Model) MoveUp(n int) {
 // MoveDown moves the selection down by any number of row.
 // It can not go below the last row.
 func (m *Model) MoveDown(n int) {
-	m.cursor = clamp(m.cursor+n, 0, len(visibleLines(m.tree))-1)
+	m.cursor = clamp(m.cursor+n, 0, len(m.tree.visibleNodes())-1)
 
 	if m.cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
 		m.viewport.LineDown(n)
@@ -89,18 +89,18 @@ func (m *Model) GotoTop() {
 
 // GotoBottom moves the selection to the last row.
 func (m *Model) GotoBottom() {
-	m.MoveDown(m.tree.Len())
+	m.MoveDown(m.tree.len())
 	m.setCurrentNode()
 }
 
 type Nodes []Node
 
-func (n Nodes) Len() int {
+func (n Nodes) len() int {
 	l := 0
 	for _, node := range n {
 		l++
 		if node.Children() != nil {
-			l += node.Children().Len()
+			l += node.Children().len()
 		}
 	}
 	return l
@@ -119,19 +119,25 @@ func (n Nodes) at(i int) Node {
 			if nn := p.Children().at(i - j - 1); nn != nil {
 				return nn
 			}
-			j += len(visibleLines(p.Children()))
+			j += len(p.Children().visibleNodes())
 		}
 		j++
 	}
 	return nil
 }
 
-func (n Nodes) GoString() string {
-	s := strings.Builder{}
-	for i, nn := range n {
-		s.WriteString(fmt.Sprintf(" %d => %#v\n", i, nn))
+func (n Nodes) visibleNodes() Nodes {
+	visible := make(Nodes, 0)
+	for _, nn := range n {
+		if nn.State()&NodeVisible != NodeVisible {
+			continue
+		}
+		visible = append(visible, nn)
+		if nn.State()&NodeCollapsible == NodeCollapsible && nn.State()&NodeCollapsed != NodeCollapsed {
+			visible = append(visible, nn.Children().visibleNodes()...)
+		}
 	}
-	return s.String()
+	return visible
 }
 
 // KeyMap defines keybindings.
@@ -263,20 +269,6 @@ func (m *Model) ToggleExpand() error {
 	m.setCurrentNode()
 	m.UpdateViewport()
 	return nil
-}
-
-func visibleLines(n Nodes) Nodes {
-	visible := make(Nodes, 0)
-	for _, nn := range n {
-		if nn.State()&NodeVisible != NodeVisible {
-			continue
-		}
-		visible = append(visible, nn)
-		if nn.State()&NodeCollapsible == NodeCollapsible && nn.State()&NodeCollapsed != NodeCollapsed {
-			visible = append(visible, visibleLines(nn.Children())...)
-		}
-	}
-	return visible
 }
 
 // SetWidth sets the width of the viewport of the table.
@@ -489,7 +481,7 @@ func (m *Model) renderNode(t Node) string {
 }
 
 func ellipsize(s string, w int) string {
-	if w > len(s) || w < 0 {
+	if w > len(s) || w < 1 {
 		return s
 	}
 	b := strings.Builder{}

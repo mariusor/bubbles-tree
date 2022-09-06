@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -509,6 +510,7 @@ func Test_getTreeSymbolForPos(t *testing.T) {
 	}
 }
 
+
 func Test_ellipsize(t *testing.T) {
 	type args struct {
 		s string
@@ -650,6 +652,183 @@ func Test_max(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := max(tt.args.a, tt.args.b); got != tt.want {
 				t.Errorf("max() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+var child = tn("two")
+var oneWithChild = tn("one", c(child))
+var oneWithChildExpected = Nodes{oneWithChild, child}
+
+var hiddenChild = tn("two", st(^NodeVisible))
+var oneWithHiddenChild = tn("one", c(hiddenChild))
+var oneWithHiddenChildExpected = Nodes{oneWithHiddenChild}
+
+var oneWithChildCollapsed = tn("one collapsed", st(NodeVisible|NodeCollapsed), c(child))
+var oneWithChildCollapsedExpected = Nodes{oneWithChildCollapsed}
+
+func TestNodes_visibleNodes(t *testing.T) {
+	tests := []struct {
+		name string
+		n    Nodes
+		want Nodes
+	}{
+		{
+			name: "empty",
+			n:    Nodes{},
+			want: Nodes{},
+		},
+		{
+			name: "single node",
+			n:    Nodes{tn("one")},
+			want: Nodes{tn("one")},
+		},
+		{
+			name: "two nodes",
+			n:    Nodes{tn("one"), tn("two")},
+			want: Nodes{tn("one"), tn("two")},
+		},
+		{
+			name: "one node with visible child",
+			n:    Nodes{oneWithChild},
+			want: oneWithChildExpected,
+		},
+		{
+			name: "one node with non visible child",
+			n:    Nodes{oneWithHiddenChild},
+			want: oneWithHiddenChildExpected,
+		},
+		{
+			name: "one collapsed with visible child",
+			n:    Nodes{oneWithChildCollapsed},
+			want: oneWithChildCollapsedExpected,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.n.visibleNodes(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("visibleNodes() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNodes_at(t *testing.T) {
+	type args struct {
+		i int
+	}
+	tests := []struct {
+		name string
+		n    Nodes
+		args args
+		want Node
+	}{
+		{
+			name: "empty",
+			n:    nil,
+			args: args{0},
+			want: nil,
+		},
+		{
+			name: "empty: invalid index",
+			n:    nil,
+			args: args{1},
+			want: nil,
+		},
+		{
+			name: "first from one node",
+			n:    Nodes{tn("one")},
+			args: args{0},
+			want: tn("one"),
+		},
+		{
+			name: "invalid index from one node",
+			n:    Nodes{tn("one")},
+			args: args{1},
+			want: nil,
+		},
+		{
+			name: "second from two nodes",
+			n:    Nodes{tn("one"), tn("two")},
+			args: args{1},
+			want: tn("two"),
+		},
+		{
+			name: "second from node with child",
+			n:    Nodes{tn("one", c(child))},
+			args: args{1},
+			want: child,
+		},
+		{
+			name: "nil when getting hidden child",
+			n:    Nodes{oneWithHiddenChild},
+			args: args{1},
+			want: nil,
+		},
+		{
+			name: "parent when getting from collapsed parent",
+			n:    Nodes{oneWithChildCollapsed},
+			args: args{0},
+			want: oneWithChildCollapsed,
+		},
+		{
+			name: "nil when getting from collapsed parent",
+			n:    Nodes{oneWithChildCollapsed},
+			args: args{1},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.n.at(tt.args.i); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("at() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNodes_len(t *testing.T) {
+	tests := []struct {
+		name string
+		n    Nodes
+		want int
+	}{
+		{
+			name: "nil",
+			n:    nil,
+			want: 0,
+		},
+		{
+			name: "empty",
+			n:    Nodes{},
+			want: 0,
+		},
+		{
+			name: "one node",
+			n:    Nodes{tn("one")},
+			want: 1,
+		},
+		{
+			name: "two nodes",
+			n:    Nodes{tn("one"), tn("two")},
+			want: 2,
+		},
+		{
+			name: "one with one child",
+			n:    Nodes{tn("one", c(tn("two")))},
+			want: 2,
+		},
+		{
+			name: "treeOne",
+			n:    Nodes{treeOne},
+			want: 11,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.n.len(); got != tt.want {
+				t.Errorf("len() = %v, want %v", got, tt.want)
 			}
 		})
 	}
