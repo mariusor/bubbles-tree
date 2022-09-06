@@ -150,9 +150,7 @@ type KeyMap struct {
 	GotoTop      key.Binding
 	GotoBottom   key.Binding
 
-	Expand  key.Binding
-	Advance key.Binding
-	Parent  key.Binding
+	Expand key.Binding
 }
 
 // DefaultKeyMap returns a default set of keybindings.
@@ -193,14 +191,6 @@ func DefaultKeyMap() KeyMap {
 		Expand: key.NewBinding(
 			key.WithKeys("o"),
 			key.WithHelp("o", "toggle expand for current node"),
-		),
-		Advance: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "open this node"),
-		),
-		Parent: key.NewBinding(
-			key.WithKeys("backspace"),
-			key.WithHelp("backspace", "go back to the parent node"),
 		),
 	}
 }
@@ -281,40 +271,6 @@ func (m *Model) ToggleExpand() error {
 	n := m.tree.at(m.cursor)
 	n.SetState(n.State() ^ NodeCollapsed)
 	m.setCurrentNode()
-	m.UpdateViewport()
-	return nil
-}
-
-// Parent moves the whole Treeish to the parent node
-func (m *Model) Parent() error {
-	n := m.tree.at(0).Parent()
-	if n == nil {
-		return fmt.Errorf("invalid parent node")
-	}
-	m.LogFn("Going to parent: %s", n)
-
-	m.tree = n.Children()
-
-	n.SetState(n.State() | NodeCollapsed)
-	m.GotoTop()
-
-	m.UpdateViewport()
-	return nil
-}
-
-// Advance moves the whole Treeish to the node m.cursor points at
-func (m *Model) Advance() error {
-	n := m.tree.at(m.cursor)
-	if n == nil {
-		return fmt.Errorf("invalid node at pos %d", m.cursor)
-	}
-
-	m.LogFn("Advancing to: %s", n)
-	m.tree = n.Children()
-
-	n.SetState(n.State() ^ NodeCollapsed)
-	m.GotoTop()
-
 	m.UpdateViewport()
 	return nil
 }
@@ -409,10 +365,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.KeyMap.Expand):
 			err = m.ToggleExpand()
-		case key.Matches(msg, m.KeyMap.Advance):
-			err = m.Advance()
-		case key.Matches(msg, m.KeyMap.Parent):
-			err = m.Parent()
 		case key.Matches(msg, m.KeyMap.LineUp):
 			m.MoveUp(1)
 		case key.Matches(msg, m.KeyMap.LineDown):
