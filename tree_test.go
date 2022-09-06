@@ -509,6 +509,41 @@ func Test_getTreeSymbolForPos(t *testing.T) {
 	}
 }
 
+func Test_ellipsize(t *testing.T) {
+	type args struct {
+		s string
+		w int
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "empty",
+			args: args{},
+			want: "",
+		},
+		{
+			name: "not ellipsized",
+			args: args{"ana are mere", 20},
+			want: "ana are mere",
+		},
+		{
+			name: "ellipsized",
+			args: args{"ana are mere", 10},
+			want: "ana are m" + Ellipsis,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ellipsize(tt.args.s, tt.args.w); got != tt.want {
+				t.Errorf("ellipsize() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_clamp(t *testing.T) {
 	type args struct {
 		v    int
