@@ -457,6 +457,9 @@ func getDepth(n Node) int {
 }
 
 func getTreeSymbolForPos(n Node, pos, maxDepth int) string {
+	if n == nil {
+		return ""
+	}
 	if !showTreeSymbolAtPos(n, pos, maxDepth) {
 		return EmptyPadding
 	}
