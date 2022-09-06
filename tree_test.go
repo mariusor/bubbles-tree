@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"github.com/charmbracelet/bubbles/viewport"
 	"reflect"
 	"testing"
 )
@@ -45,7 +46,7 @@ func p(p *n) func(*n) {
 
 func st(st NodeState) func(*n) {
 	return func(nn *n) {
-		nn.s |= st
+		nn.s = st
 	}
 }
 
@@ -510,7 +511,6 @@ func Test_getTreeSymbolForPos(t *testing.T) {
 	}
 }
 
-
 func Test_ellipsize(t *testing.T) {
 	type args struct {
 		s string
@@ -829,6 +829,77 @@ func TestNodes_len(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.n.len(); got != tt.want {
 				t.Errorf("len() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func mockModel(nn ...*n) Model {
+	m := Model{
+		viewport: viewport.New(0, 1),
+		focus:    true,
+		KeyMap:   DefaultKeyMap(),
+		styles:   DefaultStyles(),
+	}
+	if len(nn) == 0 {
+		return m
+	}
+	m.tree = make(Nodes, len(nn))
+	for i, n := range nn {
+		m.tree[i] = n
+	}
+	return m
+}
+
+func TestNew(t *testing.T) {
+	type args struct {
+		t Nodes
+	}
+	tests := []struct {
+		name string
+		args args
+		want Model
+	}{
+		{
+			name: "no nodes",
+			args: args{},
+			want: mockModel(),
+		},
+		{
+			name: "single node",
+			args: args{Nodes{tn("test")}},
+			want: mockModel(tn("test")),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := New(tt.args.t); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("New() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestModel_Children(t *testing.T) {
+	type fields struct {
+		tree []*n
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   Nodes
+	}{
+		{
+			name:   "nil",
+			fields: fields{},
+			want:   nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mockModel(tt.fields.tree...)
+			if got := m.Children(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Children() = %v, want %v", got, tt.want)
 			}
 		})
 	}
