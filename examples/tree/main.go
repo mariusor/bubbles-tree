@@ -21,20 +21,10 @@ type quittingTree struct {
 
 func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := m.(tea.KeyMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
-		e.Model.LogFn("exiting")
 		return e, tea.Quit
 	}
 	_, cmd := e.Model.Update(m)
 	return e, cmd
-}
-
-func openlog() io.Writer {
-	name := filepath.Join("/tmp", filepath.Base(os.Args[0])+".log")
-	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
-	if err != nil {
-		return io.Discard
-	}
-	return f
 }
 
 func main() {
@@ -43,8 +33,6 @@ func main() {
 	flag.IntVar(&depth, "depth", 2, "The maximum depth to read the directory structure")
 	flag.BoolVar(&debug, "debug", false, "Are we debugging")
 	flag.Parse()
-
-	log.SetOutput(openlog())
 
 	path := RootPath
 	if flag.NArg() > 0 {
@@ -59,8 +47,6 @@ func main() {
 	log.Printf("starting at %s", path)
 	t := tree.New(buildNodeTree(path, depth))
 	m := quittingTree{Model: t}
-
-	m.Model.LogFn = log.Printf
 
 	initializers := make([]tea.ProgramOption, 0)
 	if debug {

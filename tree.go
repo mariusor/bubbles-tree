@@ -61,10 +61,8 @@ type Node interface {
 // It can not go above the first row.
 func (m *Model) MoveUp(n int) {
 	m.cursor = clamp(m.cursor-n, 0, len(visibleLines(m.tree))-1)
-	m.LogFn("move %d, new pos: %d", n, m.cursor)
 
 	if m.cursor < m.viewport.YOffset {
-		m.LogFn("viewport adjustment %d", n)
 		m.viewport.LineUp(n)
 	}
 	m.setCurrentNode()
@@ -75,10 +73,8 @@ func (m *Model) MoveUp(n int) {
 // It can not go below the last row.
 func (m *Model) MoveDown(n int) {
 	m.cursor = clamp(m.cursor+n, 0, len(visibleLines(m.tree))-1)
-	m.LogFn("move %d, new pos: %d", n, m.cursor)
 
 	if m.cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
-		m.LogFn("viewport adjustment %d", n)
 		m.viewport.LineDown(n)
 	}
 	m.setCurrentNode()
@@ -232,10 +228,6 @@ func (m *Model) UpdateViewport() {
 	)
 }
 
-type logFn func(s string, args ...interface{})
-
-func emptyLog(_ string, _ ...interface{}) {}
-
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
 	KeyMap   KeyMap
@@ -245,8 +237,7 @@ type Model struct {
 	focus  bool
 	styles Styles
 
-	tree  Nodes
-	LogFn logFn
+	tree Nodes
 }
 
 func New(t Nodes) Model {
@@ -258,7 +249,6 @@ func New(t Nodes) Model {
 
 		KeyMap: DefaultKeyMap(),
 		styles: DefaultStyles(),
-		LogFn:  emptyLog,
 	}
 }
 
@@ -386,7 +376,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if err != nil {
-		m.LogFn("error: %s", err)
+		// TODO(marius): add a way to flash the model here?
 	}
 	return m, nil
 }
