@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"fmt"
 	"github.com/charmbracelet/bubbles/viewport"
 	"reflect"
 	"testing"
@@ -902,5 +903,95 @@ func TestModel_Children(t *testing.T) {
 				t.Errorf("Children() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestModel_SetWidth(t *testing.T) {
+	testValues := []int{
+		0, 10, -100, 200,
+	}
+	for _, w := range testValues {
+		t.Run(fmt.Sprintf("Width: %d", w), func(t *testing.T) {
+			m := mockModel()
+			if m.viewport.Width != 0 {
+				t.Errorf("invalid width after initialization: %d, expected %d", m.viewport.Width, 0)
+			}
+			m.SetWidth(w)
+			if m.viewport.Width != w {
+				t.Errorf("invalid width after SetWidth(): %d, expected %d", m.viewport.Width, w)
+			}
+			if m.Width() != w {
+				t.Errorf("invalid value returned by Width(): %d, expected %d", m.Width(), w)
+			}
+		})
+	}
+}
+
+func TestModel_SetHeight(t *testing.T) {
+	testValues := []int{
+		0, 10, -100, 200, 666,
+	}
+	for _, w := range testValues {
+		t.Run(fmt.Sprintf("Height: %d", w), func(t *testing.T) {
+			m := mockModel()
+			if m.viewport.Height != 1 {
+				t.Errorf("invalid height after initialization: %d, expected %d", m.viewport.Height, 1)
+			}
+			m.SetHeight(w)
+			if m.viewport.Height != w {
+				t.Errorf("invalid width after SetHeight(): %d, expected %d", m.viewport.Height, w)
+			}
+			if m.Height() != w {
+				t.Errorf("invalid value returned by Height(): %d, expected %d", m.Height(), w)
+			}
+		})
+	}
+}
+
+func TestModel_Init(t *testing.T) {
+	// NOTE(marius): having the init() function as a Cmd seems iffy and maybe pointless
+	m := mockModel()
+	want := m.init
+	got := m.Init()
+	if reflect.TypeOf(want).Kind() != reflect.Func {
+		t.Errorf("Init() did not return a function")
+	}
+	if !reflect.DeepEqual(got(), want()) {
+		t.Errorf("Init() = %v, want %v", got(), want())
+	}
+}
+
+func TestModel_Focus(t *testing.T) {
+	m := mockModel()
+	if !m.focus {
+		t.Errorf("invalid focus value after initialization: %t, expected %t", m.focus, true)
+	}
+	if !m.Focused() {
+		t.Errorf("invalid Focused() value after initialization: %t, expected %t", m.Focused(), true)
+	}
+	m.focus = false
+	m.Focus()
+	if !m.focus {
+		t.Errorf("invalid focus value after calling Focus(): %t, expected %t", m.focus, true)
+	}
+	if !m.Focused() {
+		t.Errorf("invalid Focused() value after calling Focus(): %t, expected %t", m.Focused(), true)
+	}
+}
+
+func TestModel_Blur(t *testing.T) {
+	m := mockModel()
+	if !m.focus {
+		t.Errorf("invalid focus value after initialization: %t, expected %t", m.focus, true)
+	}
+	if !m.Focused() {
+		t.Errorf("invalid Focused() value after initialization: %t, expected %t", m.Focused(), true)
+	}
+	m.Blur()
+	if m.focus {
+		t.Errorf("invalid focus value after calling Blur(): %t, expected %t", m.focus, false)
+	}
+	if m.Focused() {
+		t.Errorf("invalid Focused() value after calling Blur(): %t, expected %t", m.Focused(), false)
 	}
 }
