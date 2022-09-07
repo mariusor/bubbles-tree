@@ -440,6 +440,9 @@ func drawTreeElementsForNode(t Node) string {
 }
 
 func (m *Model) renderNode(t Node) string {
+	if t == nil {
+		return ""
+	}
 	style := defaultStyle
 
 	prefix := ""
