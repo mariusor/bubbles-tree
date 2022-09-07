@@ -202,9 +202,9 @@ func DefaultStyles() Styles {
 	}
 }
 
-// SetStyles sets the table styles.
+// SetStyles sets the table Styles.
 func (m *Model) SetStyles(s Styles) {
-	m.styles = s
+	m.Styles = s
 	m.UpdateViewport()
 }
 
@@ -239,7 +239,7 @@ func (s Symbols) Padding() string {
 	return strings.Repeat(" ", s.Width)
 }
 
-// DefaultSymbols returns a set of default symbols for drawing the tree.
+// DefaultSymbols returns a set of default Symbols for drawing the tree.
 func DefaultSymbols() Symbols {
 	return Symbols{
 		Width:            3,
@@ -269,28 +269,28 @@ func (m *Model) UpdateViewport() {
 
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
-	keyMap  KeyMap
-	styles  Styles
-	symbols Symbols
+	KeyMap  KeyMap
+	Styles  Styles
+	Symbols Symbols
 
 	focus  bool
 	cursor int
 
-	viewport viewport.Model
-
 	tree Nodes
+
+	viewport viewport.Model
 }
 
 func New(t Nodes) Model {
 	return Model{
+		KeyMap:  DefaultKeyMap(),
+		Styles:  DefaultStyles(),
+		Symbols: DefaultSymbols(),
+
 		tree: t,
 
 		viewport: viewport.New(0, 1),
 		focus:    true,
-
-		keyMap:  DefaultKeyMap(),
-		styles:  DefaultStyles(),
-		symbols: DefaultSymbols(),
 	}
 }
 
@@ -381,25 +381,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.UpdateViewport()
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keyMap.Expand):
+		case key.Matches(msg, m.KeyMap.Expand):
 			err = m.ToggleExpand()
-		case key.Matches(msg, m.keyMap.LineUp):
+		case key.Matches(msg, m.KeyMap.LineUp):
 			m.MoveUp(1)
-		case key.Matches(msg, m.keyMap.LineDown):
+		case key.Matches(msg, m.KeyMap.LineDown):
 			m.MoveDown(1)
-		case key.Matches(msg, m.keyMap.PageUp):
+		case key.Matches(msg, m.KeyMap.PageUp):
 			m.MoveUp(m.viewport.Height)
-		case key.Matches(msg, m.keyMap.PageDown):
+		case key.Matches(msg, m.KeyMap.PageDown):
 			m.MoveDown(m.viewport.Height)
-		case key.Matches(msg, m.keyMap.HalfPageUp):
+		case key.Matches(msg, m.KeyMap.HalfPageUp):
 			m.MoveUp(m.viewport.Height / 2)
-		case key.Matches(msg, m.keyMap.HalfPageDown):
+		case key.Matches(msg, m.KeyMap.HalfPageDown):
 			m.MoveDown(m.viewport.Height / 2)
-		case key.Matches(msg, m.keyMap.LineDown):
+		case key.Matches(msg, m.KeyMap.LineDown):
 			m.MoveDown(1)
-		case key.Matches(msg, m.keyMap.GotoTop):
+		case key.Matches(msg, m.KeyMap.GotoTop):
 			m.GotoTop()
-		case key.Matches(msg, m.keyMap.GotoBottom):
+		case key.Matches(msg, m.KeyMap.GotoBottom):
 			m.GotoBottom()
 		}
 	}
@@ -431,18 +431,18 @@ func (m *Model) getTreeSymbolForPos(n Node, pos, maxDepth int) string {
 		return ""
 	}
 	if !showTreeSymbolAtPos(n, pos, maxDepth) {
-		return m.symbols.Padding()
+		return m.Symbols.Padding()
 	}
 	if pos < maxDepth {
-		return m.symbols.Vertical.draw(m.symbols.Width)
+		return m.Symbols.Vertical.draw(m.Symbols.Width)
 	}
 	hints := n.State()
 	if hints&NodeLastChild == NodeLastChild {
-		return m.symbols.UpAndRight.draw(m.symbols.Width)
+		return m.Symbols.UpAndRight.draw(m.Symbols.Width)
 	} else if hints&NodeSingleChild == NodeSingleChild {
-		return m.symbols.UpAndRight.draw(m.symbols.Width)
+		return m.Symbols.UpAndRight.draw(m.Symbols.Width)
 	}
-	return m.symbols.VerticalAndRight.draw(m.symbols.Width)
+	return m.Symbols.VerticalAndRight.draw(m.Symbols.Width)
 }
 
 func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
@@ -450,7 +450,7 @@ func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
 		return false
 	}
 	if pos > maxDepth {
-		//panic("We shouldn't try to compute tree symbols for a position larger than the current node's parent depth")
+		//panic("We shouldn't try to compute tree Symbols for a position larger than the current node's parent depth")
 		return false
 	}
 	if maxDepth == pos {
@@ -488,9 +488,9 @@ func (m *Model) renderNode(t Node) string {
 	hints := t.State()
 
 	if hints&NodeCollapsible == NodeCollapsible {
-		annotation = m.symbols.Expanded
+		annotation = m.Symbols.Expanded
 		if hints&NodeCollapsed == NodeCollapsed {
-			annotation = m.symbols.Collapsed
+			annotation = m.Symbols.Collapsed
 		}
 	}
 
@@ -499,9 +499,9 @@ func (m *Model) renderNode(t Node) string {
 	name = m.ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
 	t.SetState(hints)
 
-	render := m.styles.Line.Width(m.Width()).Render
+	render := m.Styles.Line.Width(m.Width()).Render
 	if hints&NodeSelected == NodeSelected {
-		render = m.styles.Selected.Width(m.Width()).Render
+		render = m.Styles.Selected.Width(m.Width()).Render
 		t.SetState(hints ^ NodeSelected)
 	}
 	node := render(fmt.Sprintf("%s%s", prefix, name))
@@ -525,7 +525,7 @@ func (m *Model) ellipsize(s string, w int) string {
 	}
 	b := strings.Builder{}
 	b.WriteString(s[:w-1])
-	b.WriteString(m.symbols.Ellipsis)
+	b.WriteString(m.Symbols.Ellipsis)
 	return b.String()
 }
 

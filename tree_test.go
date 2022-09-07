@@ -79,7 +79,7 @@ func tn(name string, fns ...func(*n)) *n {
 }
 
 // We're building this mock tree:
-// 0  1  2  3  4  <- these are the positions for tree symbols
+// 0  1  2  3  4  <- these are the positions for tree Symbols
 // └─ ⊟ tmp
 //    ├─   example1
 //    └─ ⊟ test
@@ -858,9 +858,9 @@ func mockModel(nn ...*n) Model {
 	m := Model{
 		viewport: viewport.New(0, 1),
 		focus:    true,
-		keyMap:   DefaultKeyMap(),
-		styles:   DefaultStyles(),
-		symbols:  DefaultSymbols(),
+		KeyMap:   DefaultKeyMap(),
+		Styles:   DefaultStyles(),
+		Symbols:  DefaultSymbols(),
 	}
 	if len(nn) == 0 {
 		return m
