@@ -318,6 +318,13 @@ func Test_getDepth(t *testing.T) {
 	}
 }
 
+var emptyPadding = DefaultSymbols().Padding()
+var vertical = DefaultSymbols().Vertical.draw(DefaultSymbols().Width)
+var verticalAndRight = DefaultSymbols().VerticalAndRight.draw(DefaultSymbols().Width)
+var upAndRight = DefaultSymbols().UpAndRight.draw(DefaultSymbols().Width)
+var squaredPlus = DefaultSymbols().Collapsed
+var squaredMinus = DefaultSymbols().Expanded
+
 func Test_getTreeSymbolForPos(t *testing.T) {
 	type args struct {
 		n   Node
@@ -336,183 +343,186 @@ func Test_getTreeSymbolForPos(t *testing.T) {
 		{
 			name: "/tmp",
 			args: args{treeOne, 0},
-			want: BoxDrawingsUpAndRight,
+			want: upAndRight,
 		},
 		// /tmp/example1
 		{
 			name: "/tmp/example1 - pos 0",
 			args: args{treeOne.c[0], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/example1 - pos 1",
 			args: args{treeOne.c[0], 1},
-			want: BoxDrawingsVerticalAndRight,
+			want: verticalAndRight,
 		},
 		// /tmp/test
 		{
 			name: "/tmp/test - pos 0",
 			args: args{treeOne.c[1], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test - pos 1",
 			args: args{treeOne.c[1], 1},
-			want: BoxDrawingsUpAndRight,
+			want: upAndRight,
 		},
 		// /tmp/test/example
 		{
 			name: "/tmp/test/example - pos 0",
 			args: args{treeOne.c[1].c[0], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example - pos 1",
 			args: args{treeOne.c[1].c[0], 1},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example - pos 2",
 			args: args{treeOne.c[1].c[0], 2},
-			want: BoxDrawingsVerticalAndRight,
+			want: verticalAndRight,
 		},
 		// /tmp/text/example/file2
 		{
 			name: "/tmp/test/example/file2 - pos 0",
 			args: args{treeOne.c[1].c[0].c[0], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/file2 - pos 1",
 			args: args{treeOne.c[1].c[0].c[0], 1},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/file2 - pos 2",
 			args: args{treeOne.c[1].c[0].c[0], 2},
-			want: BoxDrawingsVertical,
+			want: vertical,
 		},
 		// /tmp/test/example/file4
 		{
 			name: "/tmp/test/example/file4 - pos 0",
 			args: args{treeOne.c[1].c[0].c[1], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/file4 - pos 1",
 			args: args{treeOne.c[1].c[0].c[1], 1},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/file4 - pos 2",
 			args: args{treeOne.c[1].c[0].c[1], 2},
-			want: BoxDrawingsVertical,
+			want: vertical,
 		},
 		// /tmp/test/example/lastchild
 		{
 			name: "/tmp/test/example/lastchild - pos 0",
 			args: args{treeOne.c[1].c[0].c[2], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/lastchild - pos 1",
 			args: args{treeOne.c[1].c[0].c[2], 1},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/lastchild - pos 2",
 			args: args{treeOne.c[1].c[0].c[2], 2},
-			want: BoxDrawingsVertical,
+			want: vertical,
 		},
 		{
 			name: "/tmp/test/example/lastchild - pos 3",
 			args: args{treeOne.c[1].c[0].c[2], 3},
-			want: BoxDrawingsUpAndRight,
+			want: upAndRight,
 		},
 		// /tmp/test/example/lastchild/file
 		{
 			name: "/tmp/test/example/lastchild/file - pos 0",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/lastchild/file - pos 1",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 1},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/lastchild/file - pos 2",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 2},
-			want: BoxDrawingsVertical,
+			want: vertical,
 		},
 		{
 			name: "/tmp/test/example/lastchild/file - pos 3",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 3},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/example/lastchild/file - pos 4",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 4},
-			want: BoxDrawingsUpAndRight,
+			want: upAndRight,
 		},
 		// /tmp/test/file1
 		{
 			name: "/tmp/test/file1 - pos 0",
 			args: args{treeOne.c[1].c[1], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/file1 - pos 1",
 			args: args{treeOne.c[1].c[1], 1},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/file1 - pos 2",
 			args: args{treeOne.c[1].c[1], 2},
-			want: BoxDrawingsVerticalAndRight,
+			want: verticalAndRight,
 		},
 		// /tmp/test/file3
 		{
 			name: "/tmp/test/file3 - pos 0",
 			args: args{treeOne.c[1].c[2], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/file3 - pos 1",
 			args: args{treeOne.c[1].c[2], 1},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/file3 - pos 2",
 			args: args{treeOne.c[1].c[2], 2},
-			want: BoxDrawingsVerticalAndRight,
+			want: verticalAndRight,
 		},
 		// /tmp/test/file5
 		{
 			name: "/tmp/test/file5 - pos 0",
 			args: args{treeOne.c[1].c[3], 0},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/file5 - pos 1",
 			args: args{treeOne.c[1].c[3], 1},
-			want: EmptyPadding,
+			want: emptyPadding,
 		},
 		{
 			name: "/tmp/test/file5 - pos 2",
 			args: args{treeOne.c[1].c[3], 2},
-			want: BoxDrawingsUpAndRight,
+			want: upAndRight,
 		},
 	}
+	m := mockModel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			maxDepth := getDepth(tt.args.n)
-			if got := getTreeSymbolForPos(tt.args.n, tt.args.pos, maxDepth); got != tt.want {
+			if got := m.getTreeSymbolForPos(tt.args.n, tt.args.pos, maxDepth); got != tt.want {
 				t.Errorf("getTreeSymbolForPos() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
+
+var ellipsis = DefaultSymbols().Ellipsis
 
 func Test_ellipsize(t *testing.T) {
 	type args struct {
@@ -537,13 +547,14 @@ func Test_ellipsize(t *testing.T) {
 		{
 			name: "ellipsized",
 			args: args{"ana are mere", 10},
-			want: "ana are m" + Ellipsis,
+			want: "ana are m" + ellipsis,
 		},
 	}
+	m := mockModel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ellipsize(tt.args.s, tt.args.w); got != tt.want {
-				t.Errorf("ellipsize() = %v, want %v", got, tt.want)
+			if got := m.ellipsize(tt.args.s, tt.args.w); got != tt.want {
+				t.Errorf("ellipsize() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -847,8 +858,9 @@ func mockModel(nn ...*n) Model {
 	m := Model{
 		viewport: viewport.New(0, 1),
 		focus:    true,
-		KeyMap:   DefaultKeyMap(),
+		keyMap:   DefaultKeyMap(),
 		styles:   DefaultStyles(),
+		symbols:  DefaultSymbols(),
 	}
 	if len(nn) == 0 {
 		return m
@@ -1063,18 +1075,18 @@ func TestModel_renderNode(t *testing.T) {
 		{
 			name: "single node",
 			node: tn("test", st(NodeLastChild)),
-			want: BoxDrawingsUpAndRight + "   test",
+			want: upAndRight + "   test",
 		},
 		{
 			name: "single node with child collapsed",
 			node: tn("one", st(NodeLastChild|NodeCollapsed), c(tn("two"))),
-			want: BoxDrawingsUpAndRight + " " + SquaredPlus + " one",
+			want: upAndRight + " " + squaredPlus + " one",
 		},
 		{
 			name: "single node with child",
 			node: tn("one", st(NodeLastChild|NodeVisible), c(tn("two"))),
-			want: BoxDrawingsUpAndRight + " " + SquaredMinus + " one   \n" +
-				"   " + BoxDrawingsUpAndRight + "   two",
+			want: upAndRight + " " + squaredMinus + " one   \n" +
+				"   " + upAndRight + "   two",
 		},
 		{
 			name: "treeOne",
@@ -1092,7 +1104,7 @@ func TestModel_renderNode(t *testing.T) {
 			linesWant := strings.Split(tt.want, "\n")
 			for i, lw := range linesWant {
 				if lg := linesGot[i]; lw != lg {
-					t.Errorf("%d %s | %s", i, lg, lw)
+					t.Errorf("%2d %s| %s", i, lw, lg)
 				}
 			}
 		})

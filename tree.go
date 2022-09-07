@@ -3,6 +3,7 @@ package tree
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -14,19 +15,6 @@ import (
 type NodeState int
 
 const (
-	EmptyPadding = "   "
-
-	BoxDrawingsDownAndRight     = " ┌─"
-	BoxDrawingsVertical         = " │ "
-	BoxDrawingsVerticalAndRight = " ├─"
-	BoxDrawingsUpAndRight       = " └─"
-	BoxDrawingsHorizontal       = "─"
-
-	SquaredPlus     = "⊞"
-	SquaredMinus    = "⊟"
-	RightwardsArrow = "→"
-	Ellipsis        = "…"
-
 	NodeError NodeState = -1
 	NodeNone  NodeState = 0
 
@@ -141,7 +129,7 @@ func (n Nodes) visibleNodes() Nodes {
 }
 
 // KeyMap defines keybindings.
-// It satisfies to the github.com/charm/bubbles/help.KeyMap interface, which is used to render the menu.
+// It satisfies to the github.com/charm/bubbles/help.KeyMap interface.
 type KeyMap struct {
 	LineUp       key.Binding
 	LineDown     key.Binding
@@ -205,7 +193,7 @@ type Styles struct {
 	Selected lipgloss.Style
 }
 
-// DefaultStyles returns a set of default style definitions for this table.
+// DefaultStyles returns a set of default style definitions for this tree.
 func DefaultStyles() Styles {
 	return Styles{
 		Line:     defaultStyle,
@@ -218,6 +206,51 @@ func DefaultStyles() Styles {
 func (m *Model) SetStyles(s Styles) {
 	m.styles = s
 	m.UpdateViewport()
+}
+
+type Symbol string
+
+func (s Symbol) draw(p int) string {
+	if len(s) == 0 {
+		return strings.Repeat(" ", p)
+	}
+	sl := utf8.RuneCount([]byte(s))
+	if p < sl {
+		return string(s)
+	}
+	return strings.Repeat(" ", p-sl) + string(s)
+
+}
+
+type Symbols struct {
+	Width int
+
+	Vertical         Symbol
+	VerticalAndRight Symbol
+	UpAndRight       Symbol
+	Horizontal       Symbol
+
+	Collapsed string
+	Expanded  string
+	Ellipsis  string
+}
+
+func (s Symbols) Padding() string {
+	return strings.Repeat(" ", s.Width)
+}
+
+// DefaultSymbols returns a set of default symbols for drawing the tree.
+func DefaultSymbols() Symbols {
+	return Symbols{
+		Width:            3,
+		Vertical:         "│ ",
+		VerticalAndRight: "├─",
+		UpAndRight:       "└─",
+
+		Collapsed: "⊞",
+		Expanded:  "⊟",
+		Ellipsis:  "…",
+	}
 }
 
 func (m *Model) setCurrentNode() {
@@ -236,12 +269,14 @@ func (m *Model) UpdateViewport() {
 
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
-	KeyMap   KeyMap
-	viewport viewport.Model
+	keyMap  KeyMap
+	styles  Styles
+	symbols Symbols
 
-	cursor int
 	focus  bool
-	styles Styles
+	cursor int
+
+	viewport viewport.Model
 
 	tree Nodes
 }
@@ -253,8 +288,9 @@ func New(t Nodes) Model {
 		viewport: viewport.New(0, 1),
 		focus:    true,
 
-		KeyMap: DefaultKeyMap(),
-		styles: DefaultStyles(),
+		keyMap:  DefaultKeyMap(),
+		styles:  DefaultStyles(),
+		symbols: DefaultSymbols(),
 	}
 }
 
@@ -345,25 +381,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.UpdateViewport()
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.KeyMap.Expand):
+		case key.Matches(msg, m.keyMap.Expand):
 			err = m.ToggleExpand()
-		case key.Matches(msg, m.KeyMap.LineUp):
+		case key.Matches(msg, m.keyMap.LineUp):
 			m.MoveUp(1)
-		case key.Matches(msg, m.KeyMap.LineDown):
+		case key.Matches(msg, m.keyMap.LineDown):
 			m.MoveDown(1)
-		case key.Matches(msg, m.KeyMap.PageUp):
+		case key.Matches(msg, m.keyMap.PageUp):
 			m.MoveUp(m.viewport.Height)
-		case key.Matches(msg, m.KeyMap.PageDown):
+		case key.Matches(msg, m.keyMap.PageDown):
 			m.MoveDown(m.viewport.Height)
-		case key.Matches(msg, m.KeyMap.HalfPageUp):
+		case key.Matches(msg, m.keyMap.HalfPageUp):
 			m.MoveUp(m.viewport.Height / 2)
-		case key.Matches(msg, m.KeyMap.HalfPageDown):
+		case key.Matches(msg, m.keyMap.HalfPageDown):
 			m.MoveDown(m.viewport.Height / 2)
-		case key.Matches(msg, m.KeyMap.LineDown):
+		case key.Matches(msg, m.keyMap.LineDown):
 			m.MoveDown(1)
-		case key.Matches(msg, m.KeyMap.GotoTop):
+		case key.Matches(msg, m.keyMap.GotoTop):
 			m.GotoTop()
-		case key.Matches(msg, m.KeyMap.GotoBottom):
+		case key.Matches(msg, m.keyMap.GotoBottom):
 			m.GotoBottom()
 		}
 	}
@@ -390,23 +426,23 @@ func getDepth(n Node) int {
 	return d
 }
 
-func getTreeSymbolForPos(n Node, pos, maxDepth int) string {
+func (m *Model) getTreeSymbolForPos(n Node, pos, maxDepth int) string {
 	if n == nil {
 		return ""
 	}
 	if !showTreeSymbolAtPos(n, pos, maxDepth) {
-		return EmptyPadding
+		return m.symbols.Padding()
 	}
 	if pos < maxDepth {
-		return BoxDrawingsVertical
+		return m.symbols.Vertical.draw(m.symbols.Width)
 	}
 	hints := n.State()
 	if hints&NodeLastChild == NodeLastChild {
-		return BoxDrawingsUpAndRight
+		return m.symbols.UpAndRight.draw(m.symbols.Width)
 	} else if hints&NodeSingleChild == NodeSingleChild {
-		return BoxDrawingsUpAndRight
+		return m.symbols.UpAndRight.draw(m.symbols.Width)
 	}
-	return BoxDrawingsVerticalAndRight
+	return m.symbols.VerticalAndRight.draw(m.symbols.Width)
 }
 
 func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
@@ -429,12 +465,12 @@ func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
 	return !(n.State()&NodeSingleChild == NodeSingleChild || n.State()&NodeLastChild == NodeLastChild)
 }
 
-func drawTreeElementsForNode(t Node) string {
+func (m *Model) drawTreeElementsForNode(t Node) string {
 	maxDepth := getDepth(t)
 
 	treeSymbolsPrefix := strings.Builder{}
 	for i := 0; i <= maxDepth; i++ {
-		treeSymbolsPrefix.WriteString(getTreeSymbolForPos(t, i, maxDepth))
+		treeSymbolsPrefix.WriteString(m.getTreeSymbolForPos(t, i, maxDepth))
 	}
 	return treeSymbolsPrefix.String()
 }
@@ -452,15 +488,15 @@ func (m *Model) renderNode(t Node) string {
 	hints := t.State()
 
 	if hints&NodeCollapsible == NodeCollapsible {
-		annotation = SquaredMinus
+		annotation = m.symbols.Expanded
 		if hints&NodeCollapsed == NodeCollapsed {
-			annotation = SquaredPlus
+			annotation = m.symbols.Collapsed
 		}
 	}
 
-	prefix = fmt.Sprintf("%s %-2s", drawTreeElementsForNode(t), annotation)
+	prefix = fmt.Sprintf("%s %-2s", m.drawTreeElementsForNode(t), annotation)
 
-	name = ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
+	name = m.ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
 	t.SetState(hints)
 
 	render := m.styles.Line.Width(m.Width()).Render
@@ -483,13 +519,13 @@ func (m *Model) renderNode(t Node) string {
 	return node
 }
 
-func ellipsize(s string, w int) string {
+func (m *Model) ellipsize(s string, w int) string {
 	if w > len(s) || w < 1 {
 		return s
 	}
 	b := strings.Builder{}
 	b.WriteString(s[:w-1])
-	b.WriteString(Ellipsis)
+	b.WriteString(m.symbols.Ellipsis)
 	return b.String()
 }
 
