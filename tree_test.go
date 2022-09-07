@@ -2,9 +2,11 @@ package tree
 
 import (
 	"fmt"
-	"github.com/charmbracelet/bubbles/viewport"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/charmbracelet/bubbles/viewport"
 )
 
 type n struct {
@@ -53,9 +55,6 @@ func st(st NodeState) func(*n) {
 
 func c(c ...*n) func(*n) {
 	return func(nn *n) {
-		if len(c) > 0 {
-			nn.s |= NodeCollapsible
-		}
 		for i, nnn := range c {
 			if len(c) == 1 {
 				nnn.s |= NodeSingleChild
@@ -72,6 +71,9 @@ func tn(name string, fns ...func(*n)) *n {
 	n := &n{n: name, s: NodeVisible}
 	for _, fn := range fns {
 		fn(n)
+	}
+	if len(n.c) > 0 {
+		n.s |= NodeCollapsible
 	}
 	return n
 }
@@ -98,7 +100,7 @@ func tn(name string, fns ...func(*n)) *n {
 // m.render()
 
 var treeOne = tn("tmp",
-	st(NodeLastChild|NodeSingleChild),
+	st(NodeLastChild|NodeSingleChild|NodeVisible),
 	c(
 		tn("example1"),
 		tn("test",
@@ -107,12 +109,12 @@ var treeOne = tn("tmp",
 					c(
 						tn("file2"),
 						tn("file4"),
-						tn("lastchild", st(NodeLastChild), c(tn("file", st(NodeLastChild)))),
+						tn("lastchild", st(NodeLastChild|NodeVisible), c(tn("file", st(NodeLastChild|NodeVisible)))),
 					),
 				),
 				tn("file1"),
 				tn("file3"),
-				tn("file5", st(NodeLastChild)),
+				tn("file5", st(NodeLastChild|NodeVisible)),
 			),
 		),
 	),
@@ -779,6 +781,12 @@ func TestNodes_at(t *testing.T) {
 			args: args{1},
 			want: nil,
 		},
+		{
+			name: "treeOne - pos 0",
+			n:    Nodes{treeOne},
+			args: args{0},
+			want: treeOne,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -993,5 +1001,100 @@ func TestModel_Blur(t *testing.T) {
 	}
 	if m.Focused() {
 		t.Errorf("invalid Focused() value after calling Blur(): %t, expected %t", m.Focused(), false)
+	}
+}
+
+func TestModel_View(t *testing.T) {
+	tests := []struct {
+		name     string
+		viewport viewport.Model
+		want     string
+	}{
+		{
+			name:     "empty",
+			viewport: viewport.Model{},
+			want:     (viewport.Model{}).View(),
+		},
+		{
+			name:     "1x1",
+			viewport: viewport.Model{Width: 1, Height: 1},
+			want:     (viewport.Model{Width: 1, Height: 1}).View(),
+		},
+		{
+			name:     "1x1 - using selectedStyle",
+			viewport: viewport.Model{Width: 1, Height: 1, Style: defaultSelectedStyle},
+			want:     (viewport.Model{Width: 1, Height: 1, Style: defaultSelectedStyle}).View(),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mockModel()
+			m.viewport = tt.viewport
+			if got := m.View(); got != tt.want {
+				t.Errorf("View() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+var treeOneRendered = ` └─ ⊟ tmp               
+    ├─   example1       
+    └─ ⊟ test           
+       ├─ ⊟ example     
+       │  ├─   file2    
+       │  ├─   file4    
+       │  └─ ⊟ lastchild
+       │     └─   file  
+       ├─   file1       
+       ├─   file3       
+       └─   file5       `
+
+func TestModel_renderNode(t *testing.T) {
+	tests := []struct {
+		name string
+		node Node
+		want string
+	}{
+		{
+			name: "empty",
+			node: nil,
+			want: "",
+		},
+		{
+			name: "single node",
+			node: tn("test", st(NodeLastChild)),
+			want: BoxDrawingsUpAndRight + "   test",
+		},
+		{
+			name: "single node with child collapsed",
+			node: tn("one", st(NodeLastChild|NodeCollapsed), c(tn("two"))),
+			want: BoxDrawingsUpAndRight + " " + SquaredPlus + " one",
+		},
+		{
+			name: "single node with child",
+			node: tn("one", st(NodeLastChild|NodeVisible), c(tn("two"))),
+			want: BoxDrawingsUpAndRight + " " + SquaredMinus + " one   \n" +
+				"   " + BoxDrawingsUpAndRight + "   two",
+		},
+		{
+			name: "treeOne",
+			node: treeOne,
+			want: treeOneRendered,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mockModel()
+			m.tree = Nodes{tt.node}
+
+			got := m.renderNode(tt.node)
+			linesGot := strings.Split(got, "\n")
+			linesWant := strings.Split(tt.want, "\n")
+			for i, lw := range linesWant {
+				if lg := linesGot[i]; lw != lg {
+					t.Errorf("%d %s | %s", i, lg, lw)
+				}
+			}
+		})
 	}
 }
