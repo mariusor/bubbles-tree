@@ -254,8 +254,12 @@ func DefaultSymbols() Symbols {
 }
 
 func (m *Model) setCurrentNode() {
-	current := m.tree.at(m.cursor)
+	current := m.currentNode()
 	current.SetState(current.State() | NodeSelected)
+}
+
+func (m *Model) currentNode() Node {
+	return m.tree.at(m.cursor)
 }
 
 // UpdateViewport updates the list content based on the previously defined
@@ -336,6 +340,19 @@ func (m *Model) Cursor() int {
 
 type Msg string
 
+type ErrorMsg error
+
+func erred(err error) func() tea.Msg {
+	return func() tea.Msg {
+		return err
+	}
+}
+
+func positionChanged(n Node) func() tea.Msg {
+	return func() tea.Msg {
+		return n
+	}
+}
 func (m *Model) init() tea.Msg {
 	return Msg("initialized")
 }
@@ -402,9 +419,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.GotoBottom):
 			m.GotoBottom()
 		}
+		return m, positionChanged(m.currentNode())
 	}
+
 	if err != nil {
 		// TODO(marius): add a way to flash the model here?
+		return m, erred(err)
 	}
 	return m, nil
 }
