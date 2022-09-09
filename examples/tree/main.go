@@ -3,9 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,32 +135,25 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func main() {
-	var debug bool
 	var depth int
 	flag.IntVar(&depth, "depth", 2, "The maximum depth to read the directory structure")
-	flag.BoolVar(&debug, "debug", false, "Are we debugging")
 	flag.Parse()
 
 	path := RootPath
 	if flag.NArg() > 0 {
 		abs, err := filepath.Abs(flag.Arg(0))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s", err)
+			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 			os.Exit(1)
 		}
 		path = abs
 	}
 
-	log.Printf("starting at %s", path)
 	t := tree.New(buildNodeTree(path, depth))
 	m := quittingTree{Model: t}
 
-	initializers := make([]tea.ProgramOption, 0)
-	if debug {
-		nilReader := io.LimitedReader{}
-		initializers = append(initializers, tea.WithInput(&nilReader))
-	}
-	if err := tea.NewProgram(&m, initializers...).Start(); err != nil {
-		log.Printf("Err: %s", err.Error())
+	if err := tea.NewProgram(&m).Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		os.Exit(1)
 	}
 }
