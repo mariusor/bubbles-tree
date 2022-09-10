@@ -15,7 +15,7 @@ import (
 type NodeState int
 
 func (s NodeState) Is(st NodeState) bool {
-	return s&st != NodeNone
+	return s&st == st
 }
 
 const (
