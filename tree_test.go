@@ -63,9 +63,6 @@ func st(st NodeState) func(*n) {
 func c(c ...*n) func(*n) {
 	return func(nn *n) {
 		for i, nnn := range c {
-			if len(c) == 1 {
-				nnn.s |= NodeSingleChild
-			}
 			if i == len(c)-1 {
 				nnn.s |= NodeLastChild
 			}
@@ -88,13 +85,13 @@ func tn(name string, fns ...func(*n)) *n {
 // We're building this mock tree:
 // 0  1  2  3  4  <- these are the positions for tree Symbols
 // └─ tmp
-//    ├─   example1
+//    ├─ example1
 //    └─ test
 //       ├─ example
-//       │  ├─   file2
-//       │  ├─   file4
-//       │  └─ ⊟ lastchild
-//       │     └─   file
+//       │  ├─ file2
+//       │  ├─ file4
+//       │  └─ lastchild
+//       │     └─ file
 //       ├─ file1
 //       ├─ file3
 //       └─ file5
@@ -107,7 +104,7 @@ func tn(name string, fns ...func(*n)) *n {
 // m.render()
 
 var treeOne = tn("tmp",
-	st(NodeLastChild|NodeSingleChild|NodeVisible),
+	st(NodeLastChild|NodeVisible),
 	c(
 		tn("example1"),
 		tn("test",

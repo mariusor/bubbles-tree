@@ -15,8 +15,7 @@ import (
 type NodeState int
 
 const (
-	NodeError NodeState = -1
-	NodeNone  NodeState = 0
+	NodeNone NodeState = 0
 
 	// NodeCollapsed hints that the current node is collapsed
 	NodeCollapsed NodeState = 1 << iota
@@ -25,8 +24,6 @@ const (
 	NodeCollapsible
 	// NodeVisible hints that the current node is ready to be displayed
 	NodeVisible
-	// NodeSingleChild shows the node to be a single node in it's parent children list
-	NodeSingleChild
 	// NodeLastChild shows the node to be the last in the children list
 	NodeLastChild
 )
@@ -452,10 +449,7 @@ func (m *Model) getTreeSymbolForPos(n Node, pos, maxDepth int) string {
 	if pos < maxDepth {
 		return m.Symbols.Vertical.draw(m.Symbols.Width)
 	}
-	hints := n.State()
-	if hints&NodeLastChild == NodeLastChild {
-		return m.Symbols.UpAndRight.draw(m.Symbols.Width)
-	} else if hints&NodeSingleChild == NodeSingleChild {
+	if n.State()&NodeLastChild == NodeLastChild {
 		return m.Symbols.UpAndRight.draw(m.Symbols.Width)
 	}
 	return m.Symbols.VerticalAndRight.draw(m.Symbols.Width)
@@ -478,7 +472,7 @@ func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
 			return false
 		}
 	}
-	return !(n.State()&NodeSingleChild == NodeSingleChild || n.State()&NodeLastChild == NodeLastChild)
+	return n.State()&NodeLastChild == NodeNone
 }
 
 func (m *Model) drawTreeElementsForNode(t Node) string {
@@ -549,7 +543,6 @@ func (m *Model) renderNodes(nl Nodes) []string {
 	}
 	rendered := make([]string, 0)
 
-	nodeIsSingleChild := len(nl) == 1
 	for i, n := range nl {
 		visible := n.State()&NodeVisible == NodeVisible
 		if !visible {
@@ -559,9 +552,6 @@ func (m *Model) renderNodes(nl Nodes) []string {
 		var hints NodeState = 0
 		if len(n.Children()) > 0 {
 			hints |= NodeCollapsible
-		}
-		if nodeIsSingleChild {
-			hints |= NodeSingleChild
 		}
 		if i == len(nl)-1 {
 			hints |= NodeLastChild
