@@ -102,7 +102,7 @@ func buildNodeTree(root string, maxDepth int) tree.Nodes {
 			return fs.SkipDir
 		}
 
-		st := tree.NodeVisible
+		st := tree.NodeNone
 		if d.IsDir() {
 			st |= tree.NodeCollapsible
 		}
