@@ -25,7 +25,6 @@ const (
 	NodeCollapsible
 	// NodeVisible hints that the current node is ready to be displayed
 	NodeVisible
-	NodeRootNode
 	// NodeSingleChild shows the node to be a single node in it's parent children list
 	NodeSingleChild
 	// NodeLastChild shows the node to be the last in the children list
@@ -38,11 +37,10 @@ var (
 )
 
 type Node interface {
+	tea.Model
 	Parent() Node
-	Name() string
 	Children() Nodes
 	State() NodeState
-	SetState(NodeState)
 }
 
 // MoveUp moves the selection up by any number of row.
@@ -247,15 +245,13 @@ func DefaultSymbols() Symbols {
 		VerticalAndRight: "├─",
 		UpAndRight:       "└─",
 
-		Collapsed: "⊞",
-		Expanded:  "⊟",
-		Ellipsis:  "…",
+		Ellipsis: "…",
 	}
 }
 
 func (m *Model) setCurrentNode() {
 	current := m.currentNode()
-	current.SetState(current.State() | NodeSelected)
+	current.Update(current.State() | NodeSelected)
 }
 
 func (m *Model) currentNode() Node {
@@ -305,7 +301,7 @@ func (m *Model) Children() Nodes {
 // ToggleExpand toggles the expanded state of the node pointed at by m.cursor
 func (m *Model) ToggleExpand() error {
 	n := m.tree.at(m.cursor)
-	n.SetState(n.State() ^ NodeCollapsed)
+	n.Update(n.State() ^ NodeCollapsed)
 	m.setCurrentNode()
 	m.UpdateViewport()
 	return nil
@@ -504,25 +500,18 @@ func (m *Model) renderNode(t Node) string {
 	prefix := ""
 	annotation := ""
 
-	name := t.Name()
+	name := t.View()
 	hints := t.State()
 
-	if hints&NodeCollapsible == NodeCollapsible {
-		annotation = m.Symbols.Expanded
-		if hints&NodeCollapsed == NodeCollapsed {
-			annotation = m.Symbols.Collapsed
-		}
-	}
-
-	prefix = fmt.Sprintf("%s %-2s", m.drawTreeElementsForNode(t), annotation)
+	prefix = fmt.Sprintf("%s%-1s", m.drawTreeElementsForNode(t), annotation)
 
 	name = m.ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
-	t.SetState(hints)
+	t.Update(hints)
 
 	render := m.Styles.Line.Width(m.Width()).Render
 	if hints&NodeSelected == NodeSelected {
 		render = m.Styles.Selected.Width(m.Width()).Render
-		t.SetState(hints ^ NodeSelected)
+		t.Update(hints ^ NodeSelected)
 	}
 	node := render(fmt.Sprintf("%s%s", prefix, name))
 
@@ -568,9 +557,6 @@ func (m *Model) renderNodes(nl Nodes) []string {
 		}
 
 		var hints NodeState = 0
-		if n == firstInTree {
-			hints |= NodeRootNode
-		}
 		if len(n.Children()) > 0 {
 			hints |= NodeCollapsible
 		}
@@ -580,7 +566,7 @@ func (m *Model) renderNodes(nl Nodes) []string {
 		if i == len(nl)-1 {
 			hints |= NodeLastChild
 		}
-		n.SetState(n.State() | hints)
+		n.Update(n.State() | hints)
 		if out := m.renderNode(n); len(out) > 0 {
 			rendered = append(rendered, out)
 		}

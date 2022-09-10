@@ -29,11 +29,32 @@ func (n *pathNode) Parent() tree.Node {
 	return n.parent
 }
 
-func (n *pathNode) Name() string {
+func (n *pathNode) Init() tea.Cmd {
+	return nil
+}
+
+const (
+	Collapsed = "⊞"
+	Expanded  = "⊟"
+)
+
+func (n *pathNode) View() string {
 	if n.parent == nil {
 		return n.path
 	}
-	return filepath.Base(n.path)
+
+	hints := n.state
+	annotation := ""
+	s := strings.Builder{}
+	if hints&tree.NodeCollapsible == tree.NodeCollapsible {
+		annotation = Expanded
+		if hints&tree.NodeCollapsed == tree.NodeCollapsed {
+			annotation = Collapsed
+		}
+	}
+	fmt.Fprintf(&s, "%s %s", annotation, filepath.Base(n.path))
+
+	return s.String()
 }
 
 func (n *pathNode) Children() tree.Nodes {
@@ -44,8 +65,12 @@ func (n *pathNode) State() tree.NodeState {
 	return n.state
 }
 
-func (n *pathNode) SetState(s tree.NodeState) {
-	n.state = s
+func (n *pathNode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch m := msg.(type) {
+	case tree.NodeState:
+		n.state = m
+	}
+	return n, nil
 }
 
 func isUnixHiddenFile(name string) bool {
