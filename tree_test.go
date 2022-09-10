@@ -1114,3 +1114,59 @@ func TestModel_renderNode(t *testing.T) {
 		})
 	}
 }
+
+func TestNodeState_Is(t *testing.T) {
+	type args struct {
+		st NodeState
+	}
+	tests := []struct {
+		name string
+		s    NodeState
+		args args
+		want bool
+	}{
+		{
+			name: "nil",
+			s:    0,
+			args: args{},
+			want: true,
+		},
+		{
+			name: "Collapsible.Is_Collapsible",
+			s:    NodeCollapsible,
+			args: args{NodeCollapsible},
+			want: true,
+		},
+		{
+			name: "Collapsed.Is_Collapsed",
+			s:    NodeCollapsed,
+			args: args{NodeCollapsed},
+			want: true,
+		},
+		{
+			name: "Collapsed.IsNot_Collapsible",
+			s:    NodeCollapsed,
+			args: args{NodeCollapsible},
+			want: false,
+		},
+		{
+			name: "Collapsed|Collapsible.Is_Collapsible",
+			s:    NodeCollapsed | NodeCollapsible,
+			args: args{NodeCollapsible},
+			want: true,
+		},
+		{
+			name: "Collapsed.IsNot_Collapsible|Collapsed",
+			s:    NodeCollapsed,
+			args: args{NodeCollapsed | NodeCollapsible},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.s.Is(tt.args.st); got != tt.want {
+				t.Errorf("Is() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
