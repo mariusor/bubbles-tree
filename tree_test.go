@@ -72,7 +72,7 @@ func c(c ...*n) func(*n) {
 	}
 }
 func tn(name string, fns ...func(*n)) *n {
-	n := &n{n: name, s: NodeVisible}
+	n := &n{n: name}
 	for _, fn := range fns {
 		fn(n)
 	}
@@ -104,7 +104,7 @@ func tn(name string, fns ...func(*n)) *n {
 // m.render()
 
 var treeOne = tn("tmp",
-	st(NodeLastChild|NodeVisible),
+	st(NodeLastChild),
 	c(
 		tn("example1"),
 		tn("test",
@@ -113,12 +113,12 @@ var treeOne = tn("tmp",
 					c(
 						tn("file2"),
 						tn("file4"),
-						tn("lastchild", st(NodeLastChild|NodeVisible), c(tn("file", st(NodeLastChild|NodeVisible)))),
+						tn("lastchild", st(NodeLastChild), c(tn("file", st(NodeLastChild)))),
 					),
 				),
 				tn("file1"),
 				tn("file3"),
-				tn("file5", st(NodeLastChild|NodeVisible)),
+				tn("file5", st(NodeLastChild)),
 			),
 		),
 	),
@@ -679,11 +679,11 @@ var child = tn("two")
 var oneWithChild = tn("one", c(child))
 var oneWithChildExpected = Nodes{oneWithChild, child}
 
-var hiddenChild = tn("two", st(^NodeVisible))
+var hiddenChild = tn("two", st(NodeHidden))
 var oneWithHiddenChild = tn("one", c(hiddenChild))
 var oneWithHiddenChildExpected = Nodes{oneWithHiddenChild}
 
-var oneWithChildCollapsed = tn("one collapsed", st(NodeVisible|NodeCollapsed), c(child))
+var oneWithChildCollapsed = tn("one collapsed", st(NodeCollapsed), c(child))
 var oneWithChildCollapsedExpected = Nodes{oneWithChildCollapsed}
 
 func TestNodes_visibleNodes(t *testing.T) {
@@ -1088,7 +1088,7 @@ func TestModel_renderNode(t *testing.T) {
 		},
 		{
 			name: "single node with child",
-			node: tn("one", st(NodeLastChild|NodeVisible), c(tn("two"))),
+			node: tn("one", st(NodeLastChild), c(tn("two"))),
 			want: upAndRight + " one   \n" +
 				"   " + upAndRight + " two",
 		},

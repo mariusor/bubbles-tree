@@ -14,6 +14,10 @@ import (
 // NodeState is used for passing information from a Treeish element to the view itself
 type NodeState int
 
+func (s NodeState) Is(st NodeState) bool {
+	return s&st != NodeNone
+}
+
 const (
 	NodeNone NodeState = 0
 
@@ -22,8 +26,8 @@ const (
 	NodeSelected
 	// NodeCollapsible hints that the current node can be collapsed
 	NodeCollapsible
-	// NodeVisible hints that the current node is ready to be displayed
-	NodeVisible
+	// NodeHidden hints that the current node is not going to be displayed
+	NodeHidden
 	// NodeLastChild shows the node to be the last in the children list
 	NodeLastChild
 )
@@ -89,16 +93,36 @@ func (n Nodes) len() int {
 	return l
 }
 
+func isHidden(n Node) bool {
+	return n.State().Is(NodeHidden)
+}
+
+func isExpanded(n Node) bool {
+	return !n.State().Is(NodeCollapsed)
+}
+
+func isCollapsible(n Node) bool {
+	return n.State().Is(NodeCollapsible)
+}
+
+func isLastNode(n Node) bool {
+	return n.State().Is(NodeLastChild)
+}
+
+func isSelected(n Node) bool {
+	return n.State().Is(NodeSelected)
+}
+
 func (n Nodes) at(i int) Node {
 	j := 0
 	for _, p := range n {
-		if p.State()&NodeVisible != NodeVisible {
+		if isHidden(p) {
 			continue
 		}
 		if j == i {
 			return p
 		}
-		if p.Children() != nil && p.State()&NodeCollapsed != NodeCollapsed {
+		if isExpanded(p) && p.Children() != nil {
 			if nn := p.Children().at(i - j - 1); nn != nil {
 				return nn
 			}
@@ -112,11 +136,11 @@ func (n Nodes) at(i int) Node {
 func (n Nodes) visibleNodes() Nodes {
 	visible := make(Nodes, 0)
 	for _, nn := range n {
-		if nn.State()&NodeVisible != NodeVisible {
+		if isHidden(nn) {
 			continue
 		}
 		visible = append(visible, nn)
-		if nn.State()&NodeCollapsible == NodeCollapsible && nn.State()&NodeCollapsed != NodeCollapsed {
+		if isCollapsible(nn) && isExpanded(nn) {
 			visible = append(visible, nn.Children().visibleNodes()...)
 		}
 	}
@@ -449,7 +473,7 @@ func (m *Model) getTreeSymbolForPos(n Node, pos, maxDepth int) string {
 	if pos < maxDepth {
 		return m.Symbols.Vertical.draw(m.Symbols.Width)
 	}
-	if n.State()&NodeLastChild == NodeLastChild {
+	if isLastNode(n) {
 		return m.Symbols.UpAndRight.draw(m.Symbols.Width)
 	}
 	return m.Symbols.VerticalAndRight.draw(m.Symbols.Width)
@@ -472,7 +496,7 @@ func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
 			return false
 		}
 	}
-	return n.State()&NodeLastChild == NodeNone
+	return !isLastNode(n)
 }
 
 func (m *Model) drawTreeElementsForNode(t Node) string {
@@ -503,21 +527,19 @@ func (m *Model) renderNode(t Node) string {
 	t.Update(hints)
 
 	render := m.Styles.Line.Width(m.Width()).Render
-	if hints&NodeSelected == NodeSelected {
+	if isSelected(t) {
 		render = m.Styles.Selected.Width(m.Width()).Render
 		t.Update(hints ^ NodeSelected)
 	}
 	node := render(fmt.Sprintf("%s%s", prefix, name))
 
-	if collapsed := hints&NodeCollapsed == NodeCollapsed; !collapsed {
-		if len(t.Children()) > 0 {
-			renderedChildren := m.renderNodes(t.Children())
-			childNodes := make([]string, len(renderedChildren))
-			for i, child := range renderedChildren {
-				childNodes[i] = style.Width(m.viewport.Width).Render(child)
-			}
-			node = lipgloss.JoinVertical(lipgloss.Left, node, lipgloss.JoinVertical(lipgloss.Left, childNodes...))
+	if isExpanded(t) && len(t.Children()) > 0 {
+		renderedChildren := m.renderNodes(t.Children())
+		childNodes := make([]string, len(renderedChildren))
+		for i, child := range renderedChildren {
+			childNodes[i] = style.Width(m.viewport.Width).Render(child)
 		}
+		node = lipgloss.JoinVertical(lipgloss.Left, node, lipgloss.JoinVertical(lipgloss.Left, childNodes...))
 	}
 	return node
 }
@@ -544,8 +566,7 @@ func (m *Model) renderNodes(nl Nodes) []string {
 	rendered := make([]string, 0)
 
 	for i, n := range nl {
-		visible := n.State()&NodeVisible == NodeVisible
-		if !visible {
+		if isHidden(n) {
 			continue
 		}
 
