@@ -320,12 +320,17 @@ func (m *Model) Children() Nodes {
 }
 
 // ToggleExpand toggles the expanded state of the node pointed at by m.cursor
-func (m *Model) ToggleExpand() error {
+func (m *Model) ToggleExpand() {
 	n := m.tree.at(m.cursor)
+	if n == nil {
+		return
+	}
+	if !isCollapsible(n) {
+		return
+	}
 	n.Update(n.State() ^ NodeCollapsed)
 	m.setCurrentNode()
 	m.UpdateViewport()
-	return nil
 }
 
 // SetWidth sets the width of the viewport of the table.
@@ -416,7 +421,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.KeyMap.Expand):
-			err = m.ToggleExpand()
+			m.ToggleExpand()
 		case key.Matches(msg, m.KeyMap.LineUp):
 			m.MoveUp(1)
 		case key.Matches(msg, m.KeyMap.LineDown):
@@ -484,7 +489,8 @@ func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
 		return false
 	}
 	if pos > maxDepth {
-		//panic("We shouldn't try to compute tree Symbols for a position larger than the current node's parent depth")
+		// NOTE(marius): We shouldn't try to compute tree Symbols for a position larger
+		//  than the current node's parent depth
 		return false
 	}
 	if maxDepth == pos {

@@ -18,7 +18,7 @@ type n struct {
 }
 
 func (n *n) Parent() Node {
-	if n.p == nil {
+	if n == nil || n.p == nil {
 		return nil
 	}
 	return n.p
@@ -27,9 +27,15 @@ func (n *n) Init() tea.Cmd {
 	return nil
 }
 func (n *n) View() string {
+	if n == nil {
+		return ""
+	}
 	return n.n
 }
 func (n *n) Children() Nodes {
+	if n == nil {
+		return nil
+	}
 	nodes := make(Nodes, len(n.c))
 	for i, nn := range n.c {
 		nodes[i] = nn
@@ -38,10 +44,16 @@ func (n *n) Children() Nodes {
 }
 
 func (n *n) State() NodeState {
+	if n == nil {
+		return 0
+	}
 	return n.s
 }
 
 func (n *n) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if n == nil {
+		return nil, nil
+	}
 	if st, ok := msg.(NodeState); ok {
 		n.s = st
 	}
@@ -1116,56 +1128,244 @@ func TestModel_renderNode(t *testing.T) {
 }
 
 func TestNodeState_Is(t *testing.T) {
-	type args struct {
-		st NodeState
-	}
 	tests := []struct {
-		name string
-		s    NodeState
-		args args
-		want bool
+		name   string
+		given  NodeState
+		states []NodeState
+		want   bool
 	}{
 		{
-			name: "nil",
-			s:    0,
-			args: args{},
-			want: true,
+			name:   "nil",
+			given:  0,
+			states: nil,
+			want:   true,
 		},
 		{
-			name: "Collapsible.Is_Collapsible",
-			s:    NodeCollapsible,
-			args: args{NodeCollapsible},
-			want: true,
+			name:   "Collapsible.Is_Collapsible",
+			given:  NodeCollapsible,
+			states: []NodeState{NodeCollapsible},
+			want:   true,
 		},
 		{
-			name: "Collapsed.Is_Collapsed",
-			s:    NodeCollapsed,
-			args: args{NodeCollapsed},
-			want: true,
+			name:   "Collapsed.Is_Collapsed",
+			given:  NodeCollapsed,
+			states: []NodeState{NodeCollapsed},
+			want:   true,
 		},
 		{
-			name: "Collapsed.IsNot_Collapsible",
-			s:    NodeCollapsed,
-			args: args{NodeCollapsible},
-			want: false,
+			name:   "Collapsed.IsNot",
+			given:  NodeCollapsed,
+			states: []NodeState{NodeCollapsible, NodeSelected, NodeCollapsed | NodeCollapsible},
+			want:   false,
 		},
 		{
-			name: "Collapsed|Collapsible.Is_Collapsible",
-			s:    NodeCollapsed | NodeCollapsible,
-			args: args{NodeCollapsible},
-			want: true,
+			name:   "Collapsed|Collapsible",
+			given:  NodeCollapsed | NodeCollapsible,
+			states: []NodeState{NodeCollapsible, NodeCollapsed, NodeCollapsed | NodeCollapsible},
+			want:   true,
 		},
 		{
-			name: "Collapsed.IsNot_Collapsible|Collapsed",
-			s:    NodeCollapsed,
-			args: args{NodeCollapsed | NodeCollapsible},
-			want: false,
+			name:   "Collapsed.IsNot_Collapsible|Collapsed",
+			given:  NodeCollapsed,
+			states: []NodeState{NodeCollapsed | NodeCollapsible},
+			want:   false,
+		},
+		{
+			name:   "Collapsed|Collapsible.IsNot",
+			given:  NodeCollapsed | NodeCollapsible,
+			states: []NodeState{NodeSelected, NodeSelected | NodeCollapsed},
+			want:   false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.s.Is(tt.args.st); got != tt.want {
-				t.Errorf("Is() = %v, want %v", got, tt.want)
+			for _, st := range tt.states {
+				if got := tt.given.Is(st); got != tt.want {
+					t.Errorf("Is() = %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func Test_positionChanged(t *testing.T) {
+	tests := []struct {
+		name string
+		n    Node
+		want tea.Msg
+	}{
+		{
+			name: "nil",
+			n:    nil,
+			want: nil,
+		},
+		{
+			name: "oneWithChild",
+			n:    oneWithChild,
+			want: oneWithChild,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := positionChanged(tt.n)
+			if gotMsg := got(); !reflect.DeepEqual(gotMsg, tt.want) {
+				t.Errorf("positionChanged() = %v, want %v", gotMsg, tt.want)
+			}
+		})
+	}
+}
+
+func Test_erred(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want tea.Msg
+	}{
+		{
+			name: "nil",
+			err:  nil,
+			want: nil,
+		},
+		{
+			name: "some error",
+			err:  fmt.Errorf("test"),
+			want: fmt.Errorf("test"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := erred(tt.err)
+			if gotErr := got(); !reflect.DeepEqual(gotErr, tt.want) {
+				t.Errorf("erred() = %v, want %v", gotErr, tt.want)
+			}
+		})
+	}
+}
+
+func TestModel_Cursor(t *testing.T) {
+	tests := []struct {
+		name   string
+		tree   *n
+		cursor int
+		want   int
+	}{
+		{
+			name:   "empty tree - init",
+			tree:   nil,
+			cursor: 0,
+			want:   0,
+		},
+		{
+			name:   "treeOne - cursor 2",
+			tree:   treeOne,
+			cursor: 2,
+			want:   2,
+		},
+		{
+			name:   "treeOne - cursor out of bounds",
+			tree:   treeOne,
+			cursor: 12,
+			want:   12,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mockModel(tt.tree)
+			m.cursor = tt.cursor
+			if got := m.Cursor(); got != tt.want {
+				t.Errorf("Cursor() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestModel_currentNode(t *testing.T) {
+	type fields struct {
+		tree   *n
+		cursor int
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   *n
+	}{
+		{
+			name:   "nil",
+			fields: fields{tree: nil, cursor: 0},
+			want:   nil,
+		},
+		{
+			name:   "one node",
+			fields: fields{tree: tn("one"), cursor: 0},
+			want:   tn("one"),
+		},
+		{
+			name:   "one node with child - get the child",
+			fields: fields{tree: oneWithChild, cursor: 1},
+			want:   oneWithChild.c[0],
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mockModel(tt.fields.tree)
+			m.cursor = tt.fields.cursor
+			if got := m.currentNode(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("currentNode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestModel_ToggleExpand(t *testing.T) {
+	type fields struct {
+		tree   *n
+		cursor int
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name:    "one with child collapsed",
+			fields:  fields{tree: oneWithChildCollapsed, cursor: 0},
+			wantErr: false,
+		},
+		{
+			name:    "one with child expanded",
+			fields:  fields{tree: oneWithChild, cursor: 0},
+			wantErr: false,
+		},
+		{
+			name:    "/tmp",
+			fields:  fields{tree: treeOne, cursor: 0},
+			wantErr: false,
+		},
+		{
+			name:    "/tmp/example1 - not expandable",
+			fields:  fields{tree: treeOne, cursor: 1},
+			wantErr: false,
+		},
+		{
+			name:    "/tmp/example1 - not expandable",
+			fields:  fields{tree: treeOne, cursor: 2},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mockModel(tt.fields.tree)
+			state := m.currentNode().State()
+			if !state.Is(NodeCollapsible) {
+				t.Skipf("Current node isn't expandable")
+			}
+
+			expected := state.Is(NodeCollapsed)
+			m.ToggleExpand()
+
+			nodeCollapsed := m.currentNode().State().Is(NodeCollapsed)
+			if expected == nodeCollapsed {
+				t.Errorf("Current node collapsed state = %t, expected it to be: %t", nodeCollapsed, !expected)
 			}
 		})
 	}
