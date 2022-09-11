@@ -2,6 +2,7 @@ package tree
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"unicode/utf8"
 
@@ -364,6 +365,24 @@ func (m *Model) Width() int {
 // YOffset returns the viewport vertical scroll position of the tree.
 func (m *Model) YOffset() int {
 	return m.viewport.YOffset
+}
+
+// SetYOffset sets Y offset of the tree's viewport.
+func (m *Model) SetYOffset(n int) {
+	m.viewport.SetYOffset(n)
+	m.UpdateViewport()
+}
+
+// ScrollPercent returns the amount scrolled as a float between 0 and 1.
+func (m *Model) ScrollPercent() float64 {
+	if m.viewport.Height >= len(m.tree.visibleNodes()) {
+		return 1.0
+	}
+	y := float64(m.viewport.YOffset)
+	h := float64(m.viewport.Height)
+	t := float64(len(m.tree.visibleNodes()) - 1)
+	v := y / (t - h)
+	return math.Max(0.0, math.Min(1.0, v))
 }
 
 // Cursor returns the index of the selected row.
