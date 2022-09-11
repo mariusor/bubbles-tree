@@ -44,6 +44,8 @@ type Node interface {
 	State() NodeState
 }
 
+type Nodes []Node
+
 // MoveUp moves the selection up by any number of row.
 // It can not go above the first row.
 func (m *Model) MoveUp(n int) {
@@ -70,27 +72,20 @@ func (m *Model) MoveDown(n int) {
 
 // GotoTop moves the selection to the first row.
 func (m *Model) GotoTop() {
-	m.MoveUp(m.cursor)
+	m.MoveUp(0)
 	m.setCurrentNode()
+}
+
+// PastBottom returns whether the viewport is scrolled beyond the last
+// line. This can happen when adjusting the viewport height.
+func (m *Model) PastBottom() bool {
+	return m.viewport.PastBottom()
 }
 
 // GotoBottom moves the selection to the last row.
 func (m *Model) GotoBottom() {
-	m.MoveDown(m.tree.len())
+	m.MoveDown(m.tree.len() - 1)
 	m.setCurrentNode()
-}
-
-type Nodes []Node
-
-func (n Nodes) len() int {
-	l := 0
-	for _, node := range n {
-		l++
-		if node.Children() != nil {
-			l += node.Children().len()
-		}
-	}
-	return l
 }
 
 func isHidden(n Node) bool {
@@ -131,6 +126,17 @@ func (n Nodes) at(i int) Node {
 		j++
 	}
 	return nil
+}
+
+func (n Nodes) len() int {
+	l := 0
+	for _, node := range n {
+		l++
+		if node.Children() != nil {
+			l += node.Children().len()
+		}
+	}
+	return l
 }
 
 func (n Nodes) visibleNodes() Nodes {
@@ -221,7 +227,7 @@ func DefaultStyles() Styles {
 	}
 }
 
-// SetStyles sets the table Styles.
+// SetStyles sets the tree Styles.
 func (m *Model) SetStyles(s Styles) {
 	m.Styles = s
 	m.UpdateViewport()
@@ -333,26 +339,31 @@ func (m *Model) ToggleExpand() {
 	m.UpdateViewport()
 }
 
-// SetWidth sets the width of the viewport of the table.
+// SetWidth sets the width of the viewport of the tree.
 func (m *Model) SetWidth(w int) {
 	m.viewport.Width = w
 	m.UpdateViewport()
 }
 
-// SetHeight sets the height of the viewport of the table.
+// SetHeight sets the height of the viewport of the tree.
 func (m *Model) SetHeight(h int) {
 	m.viewport.Height = h
 	m.UpdateViewport()
 }
 
-// Height returns the viewport height of the table.
+// Height returns the viewport height of the tree.
 func (m *Model) Height() int {
 	return m.viewport.Height
 }
 
-// Width returns the viewport width of the table.
+// Width returns the viewport width of the tree.
 func (m *Model) Width() int {
 	return m.viewport.Width
+}
+
+// YOffset returns the viewport vertical scroll position of the tree.
+func (m *Model) YOffset() int {
+	return m.viewport.YOffset
 }
 
 // Cursor returns the index of the selected row.
@@ -383,19 +394,19 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
-// Focused returns the focus state of the table.
+// Focused returns the focus state of the tree.
 func (m *Model) Focused() bool {
 	return m.focus
 }
 
-// Focus focusses the table, allowing the user to move around the rows and
+// Focus focusses the tree, allowing the user to move around the tree nodes.
 // interact.
 func (m *Model) Focus() {
 	m.focus = true
 	m.UpdateViewport()
 }
 
-// Blur blurs the table, preventing selection or movement.
+// Blur blurs the tree, preventing selection or movement.
 func (m *Model) Blur() {
 	m.focus = false
 	m.UpdateViewport()
