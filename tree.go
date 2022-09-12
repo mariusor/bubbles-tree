@@ -380,7 +380,7 @@ func (m *Model) ScrollPercent() float64 {
 	}
 	y := float64(m.viewport.YOffset)
 	h := float64(m.viewport.Height)
-	t := float64(len(m.tree.visibleNodes()) - 1)
+	t := float64(len(m.tree.visibleNodes()))
 	v := y / (t - h)
 	return math.Max(0.0, math.Min(1.0, v))
 }
