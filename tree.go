@@ -45,69 +45,20 @@ type Node interface {
 	State() NodeState
 }
 
+func New(t Nodes) Model {
+	return Model{
+		KeyMap:  DefaultKeyMap(),
+		Styles:  DefaultStyles(),
+		Symbols: DefaultSymbols(),
+
+		tree: t,
+
+		viewport: viewport.New(0, 1),
+		focus:    true,
+	}
+}
+
 type Nodes []Node
-
-// MoveUp moves the selection up by any number of row.
-// It can not go above the first row.
-func (m *Model) MoveUp(n int) {
-	m.cursor = clamp(m.cursor-n, 0, len(m.tree.visibleNodes())-1)
-
-	if m.cursor < m.viewport.YOffset {
-		m.viewport.LineUp(n)
-	}
-	m.setCurrentNode()
-	m.UpdateViewport()
-}
-
-// MoveDown moves the selection down by any number of row.
-// It can not go below the last row.
-func (m *Model) MoveDown(n int) {
-	m.cursor = clamp(m.cursor+n, 0, len(m.tree.visibleNodes())-1)
-
-	if m.cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
-		m.viewport.LineDown(n)
-	}
-	m.setCurrentNode()
-	m.UpdateViewport()
-}
-
-// GotoTop moves the selection to the first row.
-func (m *Model) GotoTop() {
-	m.MoveUp(0)
-	m.setCurrentNode()
-}
-
-// PastBottom returns whether the viewport is scrolled beyond the last
-// line. This can happen when adjusting the viewport height.
-func (m *Model) PastBottom() bool {
-	return m.viewport.PastBottom()
-}
-
-// GotoBottom moves the selection to the last row.
-func (m *Model) GotoBottom() {
-	m.MoveDown(m.tree.len() - 1)
-	m.setCurrentNode()
-}
-
-func isHidden(n Node) bool {
-	return n.State().Is(NodeHidden)
-}
-
-func isExpanded(n Node) bool {
-	return !n.State().Is(NodeCollapsed)
-}
-
-func isCollapsible(n Node) bool {
-	return n.State().Is(NodeCollapsible)
-}
-
-func isLastNode(n Node) bool {
-	return n.State().Is(NodeLastChild)
-}
-
-func isSelected(n Node) bool {
-	return n.State().Is(NodeSelected)
-}
 
 func (n Nodes) at(i int) Node {
 	j := 0
@@ -231,7 +182,6 @@ func DefaultStyles() Styles {
 // SetStyles sets the tree Styles.
 func (m *Model) SetStyles(s Styles) {
 	m.Styles = s
-	m.UpdateViewport()
 }
 
 type Symbol string
@@ -277,22 +227,26 @@ func DefaultSymbols() Symbols {
 	}
 }
 
-func (m *Model) setCurrentNode() {
-	current := m.currentNode()
-	current.Update(current.State() | NodeSelected)
+func (m *Model) setCurrentNode(cursor int) tea.Cmd {
+	if cursor != m.cursor {
+		if previous := m.currentNode(); previous != nil {
+			previous.Update(previous.State() ^ NodeSelected)
+		}
+
+		m.cursor = cursor
+	}
+	if current := m.currentNode(); current != nil {
+		current.Update(current.State() | NodeSelected)
+		return m.positionChanged
+	}
+	return nil
 }
 
 func (m *Model) currentNode() Node {
+	if m.tree == nil || m.cursor < 0 {
+		return nil
+	}
 	return m.tree.at(m.cursor)
-}
-
-// UpdateViewport updates the list content based on the previously defined
-// columns and rows.
-func (m *Model) UpdateViewport() {
-	renderedRows := m.render()
-	m.viewport.SetContent(
-		lipgloss.JoinVertical(lipgloss.Left, renderedRows...),
-	)
 }
 
 // Model is the Bubble Tea model for this user interface.
@@ -309,26 +263,51 @@ type Model struct {
 	viewport viewport.Model
 }
 
-func New(t Nodes) Model {
-	return Model{
-		KeyMap:  DefaultKeyMap(),
-		Styles:  DefaultStyles(),
-		Symbols: DefaultSymbols(),
-
-		tree: t,
-
-		viewport: viewport.New(0, 1),
-		focus:    true,
-	}
-}
-
 func (m *Model) Children() Nodes {
 	return m.tree
 }
 
+// MoveUp moves the selection up by any number of row.
+// It can not go above the first row.
+func (m *Model) MoveUp(n int) tea.Cmd {
+	cursor := clamp(m.cursor-n, 0, len(m.tree.visibleNodes())-1)
+
+	if cursor < m.viewport.YOffset {
+		m.viewport.LineUp(n)
+	}
+	return m.setCurrentNode(cursor)
+}
+
+// MoveDown moves the selection down by any number of row.
+// It can not go below the last row.
+func (m *Model) MoveDown(n int) tea.Cmd {
+	cursor := clamp(m.cursor+n, 0, len(m.tree.visibleNodes())-1)
+
+	if cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
+		m.viewport.LineDown(n)
+	}
+	return m.setCurrentNode(cursor)
+}
+
+// GotoTop moves the selection to the first row.
+func (m *Model) GotoTop() tea.Cmd {
+	return m.MoveUp(0)
+}
+
+// PastBottom returns whether the viewport is scrolled beyond the last
+// line. This can happen when adjusting the viewport height.
+func (m *Model) PastBottom() bool {
+	return m.viewport.PastBottom()
+}
+
+// GotoBottom moves the selection to the last row.
+func (m *Model) GotoBottom() tea.Cmd {
+	return m.MoveDown(m.tree.len() - 1)
+}
+
 // ToggleExpand toggles the expanded state of the node pointed at by m.cursor
 func (m *Model) ToggleExpand() {
-	n := m.tree.at(m.cursor)
+	n := m.currentNode()
 	if n == nil {
 		return
 	}
@@ -336,20 +315,16 @@ func (m *Model) ToggleExpand() {
 		return
 	}
 	n.Update(n.State() ^ NodeCollapsed)
-	m.setCurrentNode()
-	m.UpdateViewport()
 }
 
 // SetWidth sets the width of the viewport of the tree.
 func (m *Model) SetWidth(w int) {
 	m.viewport.Width = w
-	m.UpdateViewport()
 }
 
 // SetHeight sets the height of the viewport of the tree.
 func (m *Model) SetHeight(h int) {
 	m.viewport.Height = h
-	m.UpdateViewport()
 }
 
 // Height returns the viewport height of the tree.
@@ -370,7 +345,6 @@ func (m *Model) YOffset() int {
 // SetYOffset sets Y offset of the tree's viewport.
 func (m *Model) SetYOffset(n int) {
 	m.viewport.SetYOffset(n)
-	m.UpdateViewport()
 }
 
 // ScrollPercent returns the amount scrolled as a float between 0 and 1.
@@ -400,35 +374,12 @@ func erred(err error) func() tea.Msg {
 	}
 }
 
-func positionChanged(n Node) func() tea.Msg {
-	return func() tea.Msg {
-		return n
-	}
-}
 func (m *Model) init() tea.Msg {
 	return Msg("initialized")
 }
 
 func (m *Model) Init() tea.Cmd {
 	return m.init
-}
-
-// Focused returns the focus state of the tree.
-func (m *Model) Focused() bool {
-	return m.focus
-}
-
-// Focus focusses the tree, allowing the user to move around the tree nodes.
-// interact.
-func (m *Model) Focus() {
-	m.focus = true
-	m.UpdateViewport()
-}
-
-// Blur blurs the tree, preventing selection or movement.
-func (m *Model) Blur() {
-	m.focus = false
-	m.UpdateViewport()
 }
 
 // Update is the Tea update function which binds keystrokes to pagination.
@@ -441,37 +392,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case Msg:
-		m.setCurrentNode()
-		m.UpdateViewport()
+		return m, m.setCurrentNode(m.cursor)
 	case tea.WindowSizeMsg:
 		m.SetHeight(msg.Height)
 		m.SetWidth(msg.Width)
-		m.setCurrentNode()
-		m.UpdateViewport()
+		return m, m.setCurrentNode(m.cursor)
 	case tea.KeyMsg:
+		var cmd tea.Cmd
 		switch {
 		case key.Matches(msg, m.KeyMap.Expand):
 			m.ToggleExpand()
 		case key.Matches(msg, m.KeyMap.LineUp):
-			m.MoveUp(1)
+			cmd = m.MoveUp(1)
 		case key.Matches(msg, m.KeyMap.LineDown):
-			m.MoveDown(1)
+			cmd = m.MoveDown(1)
 		case key.Matches(msg, m.KeyMap.PageUp):
-			m.MoveUp(m.viewport.Height)
+			cmd = m.MoveUp(m.viewport.Height)
 		case key.Matches(msg, m.KeyMap.PageDown):
-			m.MoveDown(m.viewport.Height)
+			cmd = m.MoveDown(m.viewport.Height)
 		case key.Matches(msg, m.KeyMap.HalfPageUp):
-			m.MoveUp(m.viewport.Height / 2)
+			cmd = m.MoveUp(m.viewport.Height / 2)
 		case key.Matches(msg, m.KeyMap.HalfPageDown):
-			m.MoveDown(m.viewport.Height / 2)
+			cmd = m.MoveDown(m.viewport.Height / 2)
 		case key.Matches(msg, m.KeyMap.LineDown):
-			m.MoveDown(1)
+			cmd = m.MoveDown(1)
 		case key.Matches(msg, m.KeyMap.GotoTop):
-			m.GotoTop()
+			cmd = m.GotoTop()
 		case key.Matches(msg, m.KeyMap.GotoBottom):
-			m.GotoBottom()
+			cmd = m.GotoBottom()
 		}
-		return m, positionChanged(m.currentNode())
+		return m, cmd
 	}
 
 	if err != nil {
@@ -483,7 +433,32 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the pagination to a string.
 func (m *Model) View() string {
+	renderedRows := m.render()
+	m.viewport.SetContent(
+		lipgloss.JoinVertical(lipgloss.Left, renderedRows...),
+	)
 	return m.viewport.View()
+}
+
+// Focused returns the focus state of the tree.
+func (m *Model) Focused() bool {
+	return m.focus
+}
+
+// Focus focuses the tree, allowing the user to move around the tree nodes.
+// interact.
+func (m *Model) Focus() {
+	m.focus = true
+}
+
+// Blur blurs the tree, preventing selection or movement.
+func (m *Model) Blur() {
+	m.cursor = -1
+	m.focus = false
+}
+
+func (m *Model) positionChanged() tea.Msg {
+	return m.currentNode()
 }
 
 func getDepth(n Node) int {
@@ -549,7 +524,6 @@ func (m *Model) renderNode(t Node) string {
 	if t == nil {
 		return ""
 	}
-	style := defaultStyle
 
 	prefix := ""
 	annotation := ""
@@ -565,17 +539,16 @@ func (m *Model) renderNode(t Node) string {
 	render := m.Styles.Line.Width(m.Width()).Render
 	if isSelected(t) {
 		render = m.Styles.Selected.Width(m.Width()).Render
-		t.Update(hints ^ NodeSelected)
 	}
 	node := render(fmt.Sprintf("%s%s", prefix, name))
 
 	if isExpanded(t) && len(t.Children()) > 0 {
 		renderedChildren := m.renderNodes(t.Children())
-		childNodes := make([]string, len(renderedChildren))
-		for i, child := range renderedChildren {
-			childNodes[i] = style.Width(m.viewport.Width).Render(child)
-		}
-		node = lipgloss.JoinVertical(lipgloss.Left, node, lipgloss.JoinVertical(lipgloss.Left, childNodes...))
+		node = lipgloss.JoinVertical(
+			lipgloss.Left,
+			node,
+			lipgloss.JoinVertical(lipgloss.Left, renderedChildren...),
+		)
 	}
 	return node
 }
@@ -590,15 +563,31 @@ func (m *Model) ellipsize(s string, w int) string {
 	return b.String()
 }
 
+func isHidden(n Node) bool {
+	return n.State().Is(NodeHidden)
+}
+
+func isExpanded(n Node) bool {
+	return !n.State().Is(NodeCollapsed)
+}
+
+func isCollapsible(n Node) bool {
+	return n.State().Is(NodeCollapsible)
+}
+
+func isLastNode(n Node) bool {
+	return n.State().Is(NodeLastChild)
+}
+
+func isSelected(n Node) bool {
+	return n.State().Is(NodeSelected)
+}
+
 func (m *Model) renderNodes(nl Nodes) []string {
-	if len(nl) == 0 {
+	if len(nl) == 0 || len(m.tree) == 0 {
 		return nil
 	}
 
-	firstInTree := m.tree.at(0)
-	if firstInTree == nil {
-		return nil
-	}
 	rendered := make([]string, 0)
 
 	for i, n := range nl {

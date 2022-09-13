@@ -1189,26 +1189,37 @@ func TestNodeState_Is(t *testing.T) {
 }
 
 func Test_positionChanged(t *testing.T) {
+	type args struct {
+		pos  int
+		tree Node
+	}
 	tests := []struct {
 		name string
-		n    Node
+		args args
 		want tea.Msg
 	}{
+		//{
+		//	name: "nil",
+		//	args: args{pos: 0, tree: nil},
+		//	want: nil,
+		//},
 		{
-			name: "nil",
-			n:    nil,
-			want: nil,
+			name: "oneWithChild",
+			args: args{pos: 0, tree: oneWithChild},
+			want: oneWithChild,
 		},
 		{
 			name: "oneWithChild",
-			n:    oneWithChild,
-			want: oneWithChild,
+			args: args{pos: 1, tree: oneWithChild},
+			want: oneWithChild.c[0],
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := positionChanged(tt.n)
-			if gotMsg := got(); !reflect.DeepEqual(gotMsg, tt.want) {
+			m := mockModel()
+			m.tree = Nodes{tt.args.tree}
+			m.cursor = tt.args.pos
+			if gotMsg := m.positionChanged(); !reflect.DeepEqual(gotMsg, tt.want) {
 				t.Errorf("positionChanged() = %v, want %v", gotMsg, tt.want)
 			}
 		})
