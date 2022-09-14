@@ -400,8 +400,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		var cmd tea.Cmd
 		switch {
-		case key.Matches(msg, m.KeyMap.Expand):
-			m.ToggleExpand()
 		case key.Matches(msg, m.KeyMap.LineUp):
 			cmd = m.MoveUp(1)
 		case key.Matches(msg, m.KeyMap.LineDown):
@@ -420,6 +418,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = m.GotoTop()
 		case key.Matches(msg, m.KeyMap.GotoBottom):
 			cmd = m.GotoBottom()
+		case key.Matches(msg, m.KeyMap.Expand):
+			m.ToggleExpand()
 		}
 		return m, cmd
 	}
