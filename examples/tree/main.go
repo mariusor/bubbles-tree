@@ -39,8 +39,9 @@ const (
 )
 
 func (n *pathNode) View() string {
+	name := filepath.Base(n.path)
 	if n.parent == nil {
-		return n.path
+		name = n.path
 	}
 
 	hints := n.state
@@ -52,7 +53,7 @@ func (n *pathNode) View() string {
 			annotation = Collapsed
 		}
 	}
-	fmt.Fprintf(&s, "%s %s", annotation, filepath.Base(n.path))
+	fmt.Fprintf(&s, "%s %s", annotation, name)
 
 	return s.String()
 }
