@@ -13,7 +13,7 @@ import (
 )
 
 // NodeState is used for passing information from a Treeish element to the view itself
-type NodeState int
+type NodeState uint16
 
 func (s NodeState) Is(st NodeState) bool {
 	return s&st == st
