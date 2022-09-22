@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -34,6 +33,8 @@ const (
 )
 
 var (
+	width = lipgloss.Width
+
 	defaultStyle         = lipgloss.Style{}
 	defaultSelectedStyle = defaultStyle.Reverse(true)
 )
@@ -190,7 +191,7 @@ func (s Symbol) draw(p int) string {
 	if len(s) == 0 {
 		return strings.Repeat(" ", p)
 	}
-	sl := utf8.RuneCount([]byte(s))
+	sl := width(string(s))
 	if p < sl {
 		return string(s)
 	}
@@ -539,7 +540,7 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix = m.drawTreeElementsForNode(t)
 
-	name = m.ellipsize(name, m.viewport.Width-utf8.RuneCountInString(prefix))
+	name = m.ellipsize(name, m.viewport.Width-width(prefix))
 	t.Update(hints)
 
 	render := m.Styles.Line.Width(m.Width()).Render
