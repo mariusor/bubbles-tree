@@ -539,7 +539,7 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix = m.drawTreeElementsForNode(t)
 
-	name = m.ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
+	name = m.ellipsize(name, m.viewport.Width-utf8.RuneCountInString(prefix))
 	t.Update(hints)
 
 	render := m.Styles.Line.Width(m.Width()).Render
