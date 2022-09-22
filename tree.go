@@ -533,12 +533,11 @@ func (m *Model) renderNode(t Node) string {
 	}
 
 	prefix := ""
-	annotation := ""
 
 	name := t.View()
 	hints := t.State()
 
-	prefix = fmt.Sprintf("%s%-1s", m.drawTreeElementsForNode(t), annotation)
+	prefix = m.drawTreeElementsForNode(t)
 
 	name = m.ellipsize(name, m.viewport.Width-strings.Count(prefix, ""))
 	t.Update(hints)
@@ -547,7 +546,7 @@ func (m *Model) renderNode(t Node) string {
 	if isSelected(t) {
 		render = m.Styles.Selected.Width(m.Width()).Render
 	}
-	node := render(fmt.Sprintf("%s%s", prefix, name))
+	node := render(fmt.Sprintf("%s %s", prefix, name))
 
 	if isExpanded(t) && len(t.Children()) > 0 {
 		renderedChildren := m.renderNodes(t.Children())
