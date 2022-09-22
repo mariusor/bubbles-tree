@@ -270,28 +270,18 @@ func (m *Model) Children() Nodes {
 // MoveUp moves the selection up by any number of row.
 // It can not go above the first row.
 func (m *Model) MoveUp(n int) tea.Cmd {
-	cursor := clamp(m.cursor-n, 0, len(m.tree.visibleNodes())-1)
-
-	if cursor < m.viewport.YOffset {
-		m.viewport.LineUp(n)
-	}
-	return m.setCurrentNode(cursor)
+	return m.SetCursor(m.cursor - n)
 }
 
 // MoveDown moves the selection down by any number of row.
 // It can not go below the last row.
 func (m *Model) MoveDown(n int) tea.Cmd {
-	cursor := clamp(m.cursor+n, 0, len(m.tree.visibleNodes())-1)
-
-	if cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
-		m.viewport.LineDown(n)
-	}
-	return m.setCurrentNode(cursor)
+	return m.SetCursor(m.cursor + n)
 }
 
 // GotoTop moves the selection to the first row.
 func (m *Model) GotoTop() tea.Cmd {
-	return m.MoveUp(0)
+	return m.SetCursor(0)
 }
 
 // PastBottom returns whether the viewport is scrolled beyond the last
@@ -302,7 +292,7 @@ func (m *Model) PastBottom() bool {
 
 // GotoBottom moves the selection to the last row.
 func (m *Model) GotoBottom() tea.Cmd {
-	return m.MoveDown(m.tree.len() - 1)
+	return m.SetCursor(m.tree.len() - 1)
 }
 
 // ToggleExpand toggles the expanded state of the node pointed at by m.cursor
@@ -362,6 +352,23 @@ func (m *Model) ScrollPercent() float64 {
 // Cursor returns the index of the selected row.
 func (m *Model) Cursor() int {
 	return m.cursor
+}
+
+// SetCursor returns the index of the selected row.
+func (m *Model) SetCursor(pos int) tea.Cmd {
+	cursor := clamp(pos, 0, len(m.tree.visibleNodes())-1)
+
+	yOffset := -1
+	if cursor < m.viewport.YOffset {
+		yOffset = cursor
+	}
+	if cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
+		yOffset = cursor - m.viewport.Height + 1
+	}
+	if yOffset > -1 {
+		m.viewport.SetYOffset(yOffset)
+	}
+	return m.setCurrentNode(cursor)
 }
 
 type Msg string
