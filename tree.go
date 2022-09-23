@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/truncate"
 )
 
 // NodeState is used for passing information from a Treeish element to the view itself
@@ -538,7 +539,7 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix = m.drawTreeElementsForNode(t)
 
-	name = m.ellipsize(name, m.viewport.Width-width(prefix)-1)
+	name = truncate.StringWithTail(name, uint(m.viewport.Width-width(prefix)-1), m.Symbols.Ellipsis)
 	t.Update(hints)
 
 	render := m.Styles.Line.Width(m.Width()).Render
@@ -557,16 +558,6 @@ func (m *Model) renderNode(t Node) string {
 		)
 	}
 	return node
-}
-
-func (m *Model) ellipsize(s string, w int) string {
-	if w > len(s) || w < 1 {
-		return s
-	}
-	b := strings.Builder{}
-	b.WriteString(s[:w-1])
-	b.WriteString(m.Symbols.Ellipsis)
-	return b.String()
 }
 
 func isHidden(n Node) bool {
