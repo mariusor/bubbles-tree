@@ -176,6 +176,7 @@ func main() {
 	}
 
 	t := tree.New(buildNodeTree(path, depth))
+	t.Styles.Symbol = t.Styles.Symbol.Faint(true)
 	m := quittingTree{Model: t}
 
 	if err := tea.NewProgram(&m).Start(); err != nil {

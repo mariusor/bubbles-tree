@@ -335,9 +335,9 @@ func Test_getDepth(t *testing.T) {
 }
 
 var emptyPadding = DefaultSymbols().Padding()
-var vertical = DefaultSymbols().Vertical.draw(DefaultSymbols().Width)
-var verticalAndRight = DefaultSymbols().VerticalAndRight.draw(DefaultSymbols().Width)
-var upAndRight = DefaultSymbols().UpAndRight.draw(DefaultSymbols().Width)
+var vertical = DefaultSymbols().Vertical.draw(DefaultSymbols().Width, defaultStyle)
+var verticalAndRight = DefaultSymbols().VerticalAndRight.draw(DefaultSymbols().Width, defaultStyle)
+var upAndRight = DefaultSymbols().UpAndRight.draw(DefaultSymbols().Width, defaultStyle)
 var squaredPlus = DefaultSymbols().Collapsed
 var squaredMinus = DefaultSymbols().Expanded
 
@@ -836,7 +836,7 @@ func TestNodes_len(t *testing.T) {
 
 func mockModel(nn ...*n) Model {
 	m := Model{
-		viewport: viewport.New(0, 1),
+		viewport: viewport.New(0, 0),
 		focus:    true,
 		KeyMap:   DefaultKeyMap(),
 		Styles:   DefaultStyles(),
@@ -934,15 +934,18 @@ func TestModel_SetHeight(t *testing.T) {
 	for _, w := range testValues {
 		t.Run(fmt.Sprintf("Height: %d", w), func(t *testing.T) {
 			m := mockModel()
-			if m.viewport.Height != 1 {
-				t.Errorf("invalid height after initialization: %d, expected %d", m.viewport.Height, 1)
+			if m.viewport.Height != 0 {
+				t.Errorf("invalid height after initialization: %d, expected %d", m.viewport.Height, 0)
+				return
 			}
 			m.SetHeight(w)
 			if m.viewport.Height != w {
 				t.Errorf("invalid width after SetHeight(): %d, expected %d", m.viewport.Height, w)
+				return
 			}
 			if m.Height() != w {
 				t.Errorf("invalid value returned by Height(): %d, expected %d", m.Height(), w)
+				return
 			}
 		})
 	}
