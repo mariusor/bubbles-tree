@@ -36,7 +36,7 @@ const (
 var (
 	width = lipgloss.Width
 
-	defaultStyle         = lipgloss.Style{}
+	defaultStyle         = lipgloss.NewStyle()
 	defaultSelectedStyle = defaultStyle.Reverse(true)
 )
 
