@@ -198,6 +198,13 @@ func (s Symbol) draw(p int) string {
 
 }
 
+type DrawSymbols interface {
+	Padding() string
+	Draw() string
+	DrawLast() string
+	DrawVertical() string
+}
+
 type Symbols struct {
 	Width int
 
@@ -215,8 +222,20 @@ func (s Symbols) Padding() string {
 	return strings.Repeat(" ", s.Width)
 }
 
+func (s Symbols) DrawLast() string {
+	return s.UpAndRight.draw(s.Width)
+}
+
+func (s Symbols) Draw() string {
+	return s.VerticalAndRight.draw(s.Width)
+}
+
+func (s Symbols) DrawVertical() string {
+	return s.Vertical.draw(s.Width)
+}
+
 // DefaultSymbols returns a set of default Symbols for drawing the tree.
-func DefaultSymbols() Symbols {
+func DefaultSymbols() DrawSymbols {
 	return Symbols{
 		Width:            3,
 		Vertical:         "│ ",
@@ -253,7 +272,7 @@ func (m *Model) currentNode() Node {
 type Model struct {
 	KeyMap  KeyMap
 	Styles  Styles
-	Symbols Symbols
+	Symbols DrawSymbols
 
 	focus  bool
 	cursor int
@@ -488,12 +507,12 @@ func (m *Model) getTreeSymbolForPos(n Node, pos, maxDepth int) string {
 		return m.Symbols.Padding()
 	}
 	if pos < maxDepth {
-		return m.Symbols.Vertical.draw(m.Symbols.Width)
+		return m.Symbols.DrawVertical()
 	}
 	if isLastNode(n) {
-		return m.Symbols.UpAndRight.draw(m.Symbols.Width)
+		return m.Symbols.DrawLast()
 	}
-	return m.Symbols.VerticalAndRight.draw(m.Symbols.Width)
+	return m.Symbols.Draw()
 }
 
 func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
@@ -521,8 +540,8 @@ func (m *Model) drawTreeElementsForNode(t Node) string {
 	maxDepth := getDepth(t)
 
 	treeSymbolsPrefix := strings.Builder{}
-	for i := 0; i <= maxDepth; i++ {
-		treeSymbolsPrefix.WriteString(m.getTreeSymbolForPos(t, i, maxDepth))
+	for lvl := 0; lvl <= maxDepth; lvl++ {
+		treeSymbolsPrefix.WriteString(m.getTreeSymbolForPos(t, lvl, maxDepth))
 	}
 	return treeSymbolsPrefix.String()
 }
@@ -539,7 +558,7 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix = m.drawTreeElementsForNode(t)
 
-	name = truncate.StringWithTail(name, uint(m.viewport.Width-width(prefix)-1), m.Symbols.Ellipsis)
+	name = truncate.StringWithTail(name, uint(m.viewport.Width-width(prefix)-1), "…")
 	t.Update(hints)
 
 	render := m.Styles.Line.Width(m.Width()).Render
