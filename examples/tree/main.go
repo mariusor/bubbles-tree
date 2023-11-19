@@ -178,7 +178,7 @@ func main() {
 	t := tree.New(buildNodeTree(path, depth))
 	m := quittingTree{Model: t}
 
-	if err := tea.NewProgram(&m).Start(); err != nil {
+	if _, err := tea.NewProgram(&m).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 		os.Exit(1)
 	}
