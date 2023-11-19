@@ -1,7 +1,6 @@
 package tree
 
 import (
-	"fmt"
 	"math"
 	"strings"
 
@@ -200,12 +199,13 @@ func (s Symbol) draw(p int) string {
 
 type DrawSymbols interface {
 	Padding() string
-	Draw() string
+	DrawNode() string
 	DrawLast() string
 	DrawVertical() string
 }
 
 type Symbols struct {
+	// We should try to copy the API of lipgloss.Borders
 	Width int
 
 	Vertical         Symbol
@@ -226,7 +226,7 @@ func (s Symbols) DrawLast() string {
 	return s.UpAndRight.draw(s.Width)
 }
 
-func (s Symbols) Draw() string {
+func (s Symbols) DrawNode() string {
 	return s.VerticalAndRight.draw(s.Width)
 }
 
@@ -512,7 +512,7 @@ func (m *Model) getTreeSymbolForPos(n Node, pos, maxDepth int) string {
 	if isLastNode(n) {
 		return m.Symbols.DrawLast()
 	}
-	return m.Symbols.Draw()
+	return m.Symbols.DrawNode()
 }
 
 func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
@@ -558,7 +558,8 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix = m.drawTreeElementsForNode(t)
 
-	name = truncate.StringWithTail(name, uint(m.viewport.Width-width(prefix)-1), "…")
+	sym, _ := m.Symbols.(Symbols)
+	name = truncate.StringWithTail(name, uint(m.viewport.Width-width(prefix)-1), sym.Ellipsis)
 	t.Update(hints)
 
 	render := m.Styles.Line.Width(m.Width()).Render
@@ -566,12 +567,23 @@ func (m *Model) renderNode(t Node) string {
 		render = m.Styles.Selected.Width(m.Width()).Render
 	}
 
-	node := render(fmt.Sprintf("%s %s", prefix, name))
+	name = render(name)
+
+	lineCount := lipgloss.Height(name)
+	if lineCount > 0 {
+		prefix = strings.Repeat(prefix+"\n", lineCount-1) + prefix
+	}
+
+	node := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		prefix,
+		name,
+	)
 
 	if isExpanded(t) && len(t.Children()) > 0 {
 		renderedChildren := m.renderNodes(t.Children())
 		node = lipgloss.JoinVertical(
-			lipgloss.Left,
+			lipgloss.Top,
 			node,
 			lipgloss.JoinVertical(lipgloss.Left, renderedChildren...),
 		)

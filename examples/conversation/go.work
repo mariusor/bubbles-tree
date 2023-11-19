@@ -1,0 +1,5 @@
+go 1.19
+
+use .
+
+replace github.com/mariusor/bubbles-tree => ../../
