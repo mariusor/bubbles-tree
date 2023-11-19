@@ -87,7 +87,7 @@ func buildNodeTree(root string, maxDepth int) tree.Nodes {
 		}
 		return p
 	}
-	fs.WalkDir(os.DirFS(root), ".", func(p string, d fs.DirEntry, err error) error {
+	_ = fs.WalkDir(os.DirFS(root), ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fs.SkipDir
 		}
