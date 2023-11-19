@@ -334,12 +334,13 @@ func Test_getDepth(t *testing.T) {
 	}
 }
 
-var emptyPadding = DefaultSymbols().Padding()
-var vertical = DefaultSymbols().Vertical.draw(DefaultSymbols().Width)
-var verticalAndRight = DefaultSymbols().VerticalAndRight.draw(DefaultSymbols().Width)
-var upAndRight = DefaultSymbols().UpAndRight.draw(DefaultSymbols().Width)
-var squaredPlus = DefaultSymbols().Collapsed
-var squaredMinus = DefaultSymbols().Expanded
+var defaultSymbols, _ = DefaultSymbols().(Symbols)
+var emptyPadding = defaultSymbols.Padding()
+var vertical = defaultSymbols.Vertical.draw(defaultSymbols.Width)
+var verticalAndRight = defaultSymbols.VerticalAndRight.draw(defaultSymbols.Width)
+var upAndRight = defaultSymbols.UpAndRight.draw(defaultSymbols.Width)
+var squaredPlus = defaultSymbols.Collapsed
+var squaredMinus = defaultSymbols.Expanded
 
 func Test_getTreeSymbolForPos(t *testing.T) {
 	type args struct {
@@ -538,7 +539,7 @@ func Test_getTreeSymbolForPos(t *testing.T) {
 	}
 }
 
-var ellipsis = DefaultSymbols().Ellipsis
+var ellipsis = defaultSymbols.Ellipsis
 
 func Test_clamp(t *testing.T) {
 	type args struct {
