@@ -6,7 +6,7 @@ require (
 	github.com/charmbracelet/bubbles v0.16.1
 	github.com/charmbracelet/bubbletea v0.24.2
 	github.com/charmbracelet/lipgloss v0.9.1
-	github.com/mariusor/bubbles-tree v0.0.0-20231119190816-ecc3892dab69
+	github.com/mariusor/bubbles-tree v0.0.0-20231120131407-919431a024c9
 	gopkg.in/loremipsum.v1 v1.1.2
 )
 
