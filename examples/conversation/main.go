@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	tree "github.com/mariusor/bubbles-tree"
 	"gopkg.in/loremipsum.v1"
 )
@@ -32,7 +31,9 @@ func (m message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m message) View() string {
-	return m.Model.View()
+	s := strings.Builder{}
+	fmt.Fprintf(&s, "\n%s\n", m.Model.View())
+	return s.String()
 }
 
 func (m message) Parent() tree.Node {
@@ -99,10 +100,10 @@ type coloredBorder struct {
 	depth int
 }
 
-var pipe = " " + lipgloss.NormalBorder().Left
+var pipe = "  │"
 
 func (c coloredBorder) Padding() string {
-	return strings.Repeat(" ", 3)
+	return "  "
 }
 
 func (c coloredBorder) DrawNode() string {
