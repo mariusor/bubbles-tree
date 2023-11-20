@@ -335,7 +335,7 @@ func Test_getDepth(t *testing.T) {
 }
 
 var defaultSymbols, _ = DefaultSymbols().(Symbols)
-var emptyPadding = defaultSymbols.Padding()
+var emptyPadding = defaultSymbols.Padding(1)
 var vertical = defaultSymbols.Vertical.draw(defaultSymbols.Width)
 var verticalAndRight = defaultSymbols.VerticalAndRight.draw(defaultSymbols.Width)
 var upAndRight = defaultSymbols.UpAndRight.draw(defaultSymbols.Width)
