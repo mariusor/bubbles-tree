@@ -556,7 +556,7 @@ func (m *Model) renderNode(t Node) string {
 	name := t.View()
 	hints := t.State()
 
-	prefix = m.drawTreeElementsForNode(t)
+	prefix = m.drawTreeElementsForNode(t) + " "
 
 	sym, _ := m.Symbols.(Symbols)
 	name = truncate.StringWithTail(name, uint(m.viewport.Width-width(prefix)-1), sym.Ellipsis)
