@@ -23,6 +23,7 @@ const (
 
 	// NodeCollapsed hints that the current node is collapsed
 	NodeCollapsed NodeState = 1 << iota
+	// NodeSelected hints that the current node should be rendered as selected
 	NodeSelected
 	// NodeCollapsible hints that the current node can be collapsed
 	NodeCollapsible
@@ -39,13 +40,19 @@ var (
 	defaultSelectedStyle = defaultStyle.Reverse(true)
 )
 
+// Node represents the base model for the elements of the Treeish implementation
 type Node interface {
 	tea.Model
+	// Parent should return the parent of the current node, or nil if a root node.
 	Parent() Node
+	// Children should return a list of Nodes which represent the children of the current node.
 	Children() Nodes
+	// State should return the annotation for the current node, which are used for computing various display states.
 	State() NodeState
 }
 
+// New initializes a new Model
+// It sets the default keymap, styles and symbols.
 func New(t Nodes) Model {
 	return Model{
 		KeyMap:  DefaultKeyMap(),
@@ -59,6 +66,7 @@ func New(t Nodes) Model {
 	}
 }
 
+// Nodes is a slice of Node elements, usually representing the children of a Node.
 type Nodes []Node
 
 func (n Nodes) at(i int) Node {
@@ -107,7 +115,7 @@ func (n Nodes) visibleNodes() Nodes {
 }
 
 // KeyMap defines keybindings.
-// It satisfies to the github.com/charm/bubbles/help.KeyMap interface.
+// It satisfies the github.com/charm/bubbles/help.KeyMap interface.
 type KeyMap struct {
 	LineUp       key.Binding
 	LineDown     key.Binding
