@@ -2,10 +2,17 @@ package tree
 
 import "strings"
 
+// DrawSymbols represents an uniform API to be used when drawing the tree elements.
 type DrawSymbols interface {
+	// Padding is expected to output a whitespace, or equivalent, used when two nodes
+	// at the same level are not children to the same parent.
 	Padding(int) string
+	// DrawNode is expected to output the marker used for every node in the tree.
 	DrawNode(int) string
+	// DrawLast is expected to output a terminator marker used for the last node in a list of nodes.
 	DrawLast(int) string
+	// DrawVertical is expected to output a continuator marker used to connect two nodes
+	// which are children on the same parent.
 	DrawVertical(int) string
 }
 
