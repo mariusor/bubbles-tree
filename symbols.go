@@ -45,8 +45,6 @@ func DefaultSymbols() DrawSymbols {
 }
 
 var (
-	noSymbols = Symbols{}
-
 	normalSymbols = Symbols{
 		Width:            3,
 		Vertical:         "│ ",

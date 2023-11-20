@@ -162,8 +162,23 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 
 func main() {
 	var depth int
+	var symbolsType string
 	flag.IntVar(&depth, "depth", 2, "The maximum depth to read the directory structure")
+	flag.StringVar(&symbolsType, "symbols", "normal", "The symbols type to use when drawing the tree: double, thick, rounded, normal")
 	flag.Parse()
+
+	symbols := tree.DefaultSymbols()
+	switch symbolsType {
+	case "thick":
+		symbols = tree.ThickSymbols()
+	case "rounded":
+		symbols = tree.RoundedSymbols()
+	case "double":
+		symbols = tree.DoubleSymbols()
+	case "", "normal":
+	default:
+		fmt.Fprintf(os.Stderr, "invalid symbols type, using default 'normal'\n")
+	}
 
 	path := RootPath
 	if flag.NArg() > 0 {
@@ -176,6 +191,7 @@ func main() {
 	}
 
 	t := tree.New(buildNodeTree(path, depth))
+	t.Symbols = symbols
 	m := quittingTree{Model: t}
 
 	if _, err := tea.NewProgram(&m).Run(); err != nil {
