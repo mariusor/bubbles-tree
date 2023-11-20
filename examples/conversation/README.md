@@ -22,3 +22,6 @@ $ go run . -depth 2
   │  │
 ```
 
+Or with colours:
+
+![Screenshot](./screenshot.png)

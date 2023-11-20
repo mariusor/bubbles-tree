@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	tree "github.com/mariusor/bubbles-tree"
 	"gopkg.in/loremipsum.v1"
 )
@@ -96,29 +97,34 @@ func buildConversation(depth int, parent tree.Node) tree.Nodes {
 	return conv
 }
 
-type coloredBorder struct {
-	depth int
-}
+type coloredBorder []lipgloss.TerminalColor
 
 var pipe = "  │"
 
-func (c coloredBorder) Padding() string {
+func (c coloredBorder) Padding(_ int) string {
 	return "  "
 }
 
-func (c coloredBorder) DrawNode() string {
-	return pipe
+func (c coloredBorder) DrawNode(d int) string {
+	return c.drawPipe(d)
 }
 
-func (c coloredBorder) DrawLast() string {
-	return pipe + "\n"
+func (c coloredBorder) DrawLast(d int) string {
+	return c.drawPipe(d)
 }
 
-func (c coloredBorder) DrawVertical() string {
-	return pipe
+func (c coloredBorder) DrawVertical(d int) string {
+	return c.drawPipe(d)
 }
 
-var _ tree.DrawSymbols = coloredBorder{}
+func (c coloredBorder) drawPipe(d int) string {
+	d = d % len(c)
+	style := lipgloss.Style{}
+	style = style.Foreground(c[d])
+	return style.Render(pipe)
+}
+
+var _ tree.DrawSymbols = &coloredBorder{}
 
 func main() {
 	var depth int
@@ -126,7 +132,14 @@ func main() {
 	flag.Parse()
 
 	t := tree.New(buildConversation(depth, nil))
-	t.Symbols = coloredBorder{}
+	t.Symbols = coloredBorder{
+		lipgloss.Color("#ff0000"),
+		lipgloss.Color("#00ff00"),
+		lipgloss.Color("#0000ff"),
+		lipgloss.Color("#00ffff"),
+		lipgloss.Color("#ff00ff"),
+		lipgloss.Color("#ffff00"),
+	}
 	m := quittingTree{Model: t}
 
 	if _, err := tea.NewProgram(&m).Run(); err != nil {

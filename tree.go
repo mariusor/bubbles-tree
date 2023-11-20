@@ -198,10 +198,10 @@ func (s Symbol) draw(p int) string {
 }
 
 type DrawSymbols interface {
-	Padding() string
-	DrawNode() string
-	DrawLast() string
-	DrawVertical() string
+	Padding(int) string
+	DrawNode(int) string
+	DrawLast(int) string
+	DrawVertical(int) string
 }
 
 type Symbols struct {
@@ -218,19 +218,19 @@ type Symbols struct {
 	Ellipsis  string
 }
 
-func (s Symbols) Padding() string {
+func (s Symbols) Padding(_ int) string {
 	return strings.Repeat(" ", s.Width)
 }
 
-func (s Symbols) DrawLast() string {
+func (s Symbols) DrawLast(_ int) string {
 	return s.UpAndRight.draw(s.Width)
 }
 
-func (s Symbols) DrawNode() string {
+func (s Symbols) DrawNode(_ int) string {
 	return s.VerticalAndRight.draw(s.Width)
 }
 
-func (s Symbols) DrawVertical() string {
+func (s Symbols) DrawVertical(_ int) string {
 	return s.Vertical.draw(s.Width)
 }
 
@@ -504,15 +504,15 @@ func (m *Model) getTreeSymbolForPos(n Node, pos, maxDepth int) string {
 		return ""
 	}
 	if !showTreeSymbolAtPos(n, pos, maxDepth) {
-		return m.Symbols.Padding()
+		return m.Symbols.Padding(pos)
 	}
 	if pos < maxDepth {
-		return m.Symbols.DrawVertical()
+		return m.Symbols.DrawVertical(pos)
 	}
 	if isLastNode(n) {
-		return m.Symbols.DrawLast()
+		return m.Symbols.DrawLast(pos)
 	}
-	return m.Symbols.DrawNode()
+	return m.Symbols.DrawNode(pos)
 }
 
 func showTreeSymbolAtPos(n Node, pos, maxDepth int) bool {
