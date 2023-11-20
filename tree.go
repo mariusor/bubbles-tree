@@ -197,55 +197,6 @@ func (s Symbol) draw(p int) string {
 
 }
 
-type DrawSymbols interface {
-	Padding(int) string
-	DrawNode(int) string
-	DrawLast(int) string
-	DrawVertical(int) string
-}
-
-type Symbols struct {
-	// We should try to copy the API of lipgloss.Borders
-	Width int
-
-	Vertical         Symbol
-	VerticalAndRight Symbol
-	UpAndRight       Symbol
-	Horizontal       Symbol
-
-	Collapsed string
-	Expanded  string
-	Ellipsis  string
-}
-
-func (s Symbols) Padding(_ int) string {
-	return strings.Repeat(" ", s.Width)
-}
-
-func (s Symbols) DrawLast(_ int) string {
-	return s.UpAndRight.draw(s.Width)
-}
-
-func (s Symbols) DrawNode(_ int) string {
-	return s.VerticalAndRight.draw(s.Width)
-}
-
-func (s Symbols) DrawVertical(_ int) string {
-	return s.Vertical.draw(s.Width)
-}
-
-// DefaultSymbols returns a set of default Symbols for drawing the tree.
-func DefaultSymbols() DrawSymbols {
-	return Symbols{
-		Width:            3,
-		Vertical:         "│ ",
-		VerticalAndRight: "├─",
-		UpAndRight:       "└─",
-
-		Ellipsis: "…",
-	}
-}
-
 func (m *Model) setCurrentNode(cursor int) tea.Cmd {
 	if cursor != m.cursor {
 		if previous := m.currentNode(); previous != nil {
