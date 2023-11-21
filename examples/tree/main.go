@@ -53,7 +53,10 @@ func (n *pathNode) View() string {
 			annotation = Collapsed
 		}
 	}
-	fmt.Fprintf(&s, "%-2s%s", annotation, name)
+	if len(annotation) > 0 {
+		fmt.Fprintf(&s, "%-2s%s", annotation, name)
+	}
+	fmt.Fprintf(&s, "%s", name)
 
 	return s.String()
 }
