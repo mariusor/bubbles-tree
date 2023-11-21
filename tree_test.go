@@ -539,8 +539,6 @@ func Test_getTreeSymbolForPos(t *testing.T) {
 	}
 }
 
-var ellipsis = defaultSymbols.Ellipsis
-
 func Test_clamp(t *testing.T) {
 	type args struct {
 		v    int

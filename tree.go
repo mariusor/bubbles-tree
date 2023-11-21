@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/truncate"
 )
 
 // NodeState is used for passing information from a Treeish element to the view itself
@@ -515,10 +514,6 @@ func (m *Model) renderNode(t Node) string {
 	name := t.View()
 	hints := t.State()
 
-	prefix = m.drawTreeElementsForNode(t) + " "
-
-	sym, _ := m.Symbols.(Symbols)
-	name = truncate.StringWithTail(name, uint(m.viewport.Width-width(prefix)-1), sym.Ellipsis)
 	t.Update(hints)
 
 	render := m.Styles.Line.Width(m.Width()).Render
@@ -527,7 +522,6 @@ func (m *Model) renderNode(t Node) string {
 	}
 
 	name = render(name)
-
 	lineCount := lipgloss.Height(name)
 	if lineCount > 0 {
 		prefix = strings.Repeat(prefix+"\n", lineCount-1) + prefix

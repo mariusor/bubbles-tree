@@ -27,7 +27,6 @@ type Symbols struct {
 
 	Collapsed string
 	Expanded  string
-	Ellipsis  string
 }
 
 func (s Symbols) Padding(_ int) string {
