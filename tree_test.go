@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type n struct {
@@ -334,11 +335,13 @@ func Test_getDepth(t *testing.T) {
 	}
 }
 
-var defaultSymbols, _ = DefaultSymbols().(Symbols)
-var emptyPadding = defaultSymbols.Padding(1)
-var vertical = defaultSymbols.Vertical.draw(defaultSymbols.Width)
-var verticalAndRight = defaultSymbols.VerticalAndRight.draw(defaultSymbols.Width)
-var upAndRight = defaultSymbols.UpAndRight.draw(defaultSymbols.Width)
+var s = lipgloss.NewStyle()
+var dst = Style{&s}
+var defaultSymbols = DefaultSymbols()
+var emptyPadding = Padding(dst, defaultSymbols, 1)
+var vertical = draw(dst, defaultSymbols.Continuator, defaultSymbols.Width)
+var verticalAndRight = draw(dst, defaultSymbols.Starter, defaultSymbols.Width)
+var upAndRight = draw(dst, defaultSymbols.Terminator, defaultSymbols.Width)
 var squaredPlus = defaultSymbols.Collapsed
 var squaredMinus = defaultSymbols.Expanded
 
@@ -1028,17 +1031,17 @@ func TestModel_View(t *testing.T) {
 	}
 }
 
-var treeOneRendered = ` └─ tmp               
-    ├─ example1       
-    └─ test           
-       ├─ example     
-       │  ├─ file2    
-       │  ├─ file4    
-       │  └─ lastchild
-       │     └─ file  
-       ├─ file1       
-       ├─ file3       
-       └─ file5       `
+var treeOneRendered = `└─ tmp               
+   ├─ example1       
+   └─ test           
+      ├─ example     
+      │  ├─ file2    
+      │  ├─ file4    
+      │  └─ lastchild
+      │     └─ file  
+      ├─ file1       
+      ├─ file3       
+      └─ file5       `
 
 func TestModel_renderNode(t *testing.T) {
 	tests := []struct {
@@ -1054,18 +1057,18 @@ func TestModel_renderNode(t *testing.T) {
 		{
 			name: "single node",
 			node: tn("test", st(NodeLastChild)),
-			want: upAndRight + " test",
+			want: upAndRight + "test",
 		},
 		{
 			name: "single node with child collapsed",
 			node: tn("one", st(NodeLastChild|NodeCollapsed), c(tn("two"))),
-			want: upAndRight + " one",
+			want: upAndRight + "one",
 		},
 		{
 			name: "single node with child",
 			node: tn("one", st(NodeLastChild), c(tn("two"))),
-			want: upAndRight + " one   \n" +
-				"   " + upAndRight + " two",
+			want: upAndRight + "one   \n" +
+				"   " + upAndRight + "two",
 		},
 		{
 			name: "treeOne",

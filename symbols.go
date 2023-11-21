@@ -2,110 +2,112 @@ package tree
 
 import "strings"
 
-// DrawSymbols represents an uniform API to be used when drawing the tree elements.
-type DrawSymbols interface {
-	// Padding is expected to output a whitespace, or equivalent, used when two nodes
-	// at the same level are not children to the same parent.
-	Padding(int) string
-	// DrawNode is expected to output the marker used for every node in the tree.
-	DrawNode(int) string
-	// DrawLast is expected to output a terminator marker used for the last node in a list of nodes.
-	DrawLast(int) string
-	// DrawVertical is expected to output a continuator marker used to connect two nodes
-	// which are children on the same parent.
-	DrawVertical(int) string
-}
-
 type Symbols struct {
-	// We should try to copy the API of lipgloss.Symbolss
+	// We should try to copy the API of lipgloss.Border
 	Width int
 
-	Vertical         Symbol
-	VerticalAndRight Symbol
-	UpAndRight       Symbol
-	Horizontal       Symbol
+	Continuator string
+	Starter     string
+	Terminator  string
+	Horizontal  string
 
 	Collapsed string
 	Expanded  string
 }
 
-func (s Symbols) Padding(_ int) string {
+// Padding is expected to output a whitespace, or equivalent, used when two nodes
+// at the same level are not children to the same parent.
+func Padding(style Style, s Symbols, _ int) string {
 	return strings.Repeat(" ", s.Width)
 }
 
-func (s Symbols) DrawLast(_ int) string {
-	return s.UpAndRight.draw(s.Width)
+// RenderTerminator is expected to output a terminator marker used for the last node in a list of nodes.
+func RenderTerminator(style Style, s Symbols, _ int) string {
+	return draw(style, s.Terminator, s.Width)
 }
 
-func (s Symbols) DrawNode(_ int) string {
-	return s.VerticalAndRight.draw(s.Width)
+// RenderStarter is expected to output the marker used for every node in the tree.
+func RenderStarter(style Style, s Symbols, _ int) string {
+	return draw(style, s.Starter, s.Width)
 }
 
-func (s Symbols) DrawVertical(_ int) string {
-	return s.Vertical.draw(s.Width)
+// RenderContinuator is expected to output a continuator marker used to connect two nodes
+// which are children on the same parent.
+func RenderContinuator(style Style, s Symbols, _ int) string {
+	return draw(style, s.Continuator, s.Width)
 }
 
 // DefaultSymbols returns a set of default Symbols for drawing the tree.
-func DefaultSymbols() DrawSymbols {
+func DefaultSymbols() Symbols {
 	return normalSymbols
 }
 
 var (
 	normalSymbols = Symbols{
-		Width:            3,
-		Vertical:         "│ ",
-		VerticalAndRight: "├─",
-		UpAndRight:       "└─",
-
-		Ellipsis: "…",
+		Width:       3,
+		Starter:     "├─",
+		Continuator: "│ ",
+		Terminator:  "└─",
 	}
 
 	roundedSymbols = Symbols{
-		Width:            3,
-		Vertical:         "│ ",
-		VerticalAndRight: "├─",
-		UpAndRight:       "╰─",
-
-		Ellipsis: "…",
+		Width:       3,
+		Starter:     "├─",
+		Continuator: "│ ",
+		Terminator:  "╰─",
 	}
 
 	thickSymbols = Symbols{
-		Width:            3,
-		Vertical:         "┃ ",
-		VerticalAndRight: "┣━",
-		UpAndRight:       "┗━",
-
-		Ellipsis: "…",
+		Width:       3,
+		Starter:     "┣━",
+		Continuator: "┃ ",
+		Terminator:  "┗━",
 	}
 
 	doubleSymbols = Symbols{
-		Width:            3,
-		Vertical:         "║",
-		VerticalAndRight: "╠═",
-		UpAndRight:       "╚═",
+		Width:       3,
+		Starter:     "╠═",
+		Continuator: "║",
+		Terminator:  "╚═",
+	}
 
-		Ellipsis: "…",
+	thickEdgeSymbols = Symbols{
+		Width:       2,
+		Starter:     " ╷",
+		Continuator: " │",
+		Terminator:  " ╵",
+	}
+
+	normalEdgeSymbols = Symbols{
+		Width:       2,
+		Starter:     " ╻",
+		Continuator: " ┃",
+		Terminator:  " ╹",
 	}
 )
 
 // NormalSymbols returns a standard-type symbols with a normal weight and 90
 // degree corners.
-func NormalSymbols() DrawSymbols {
+func NormalSymbols() Symbols {
 	return normalSymbols
 }
 
 // RoundedSymbols returns a symbols with rounded corners.
-func RoundedSymbols() DrawSymbols {
+func RoundedSymbols() Symbols {
 	return roundedSymbols
 }
 
 // ThickSymbols returns a symbols that's thicker than the one returned by
 // NormalSymbols.
-func ThickSymbols() DrawSymbols {
+func ThickSymbols() Symbols {
 	return thickSymbols
 }
 
 // DoubleSymbols returns a symbols comprised of two thin strokes.
-func DoubleSymbols() DrawSymbols {
+func DoubleSymbols() Symbols {
 	return doubleSymbols
+}
+
+func ThickEdgeSymbols() Symbols {
+	return thickEdgeSymbols
 }
