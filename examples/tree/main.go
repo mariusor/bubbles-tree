@@ -55,8 +55,9 @@ func (n *pathNode) View() string {
 	}
 	if len(annotation) > 0 {
 		fmt.Fprintf(&s, "%-2s%s", annotation, name)
+	} else {
+		fmt.Fprintf(&s, "%s", name)
 	}
-	fmt.Fprintf(&s, "%s", name)
 
 	return s.String()
 }
@@ -74,6 +75,7 @@ func (n *pathNode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tree.NodeState:
 		n.state = m
 	}
+
 	return n, nil
 }
 
@@ -159,28 +161,35 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := m.(tea.KeyMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
 		return e, tea.Quit
 	}
-	_, cmd := e.Model.Update(m)
+	mod, cmd := e.Model.Update(m)
+	if mm, ok := mod.(*tree.Model); ok {
+		e.Model = *mm
+	}
 	return e, cmd
 }
 
 func main() {
 	var depth int
-	var symbolsType string
+	var style string
 	flag.IntVar(&depth, "depth", 2, "The maximum depth to read the directory structure")
-	flag.StringVar(&symbolsType, "symbols", "normal", "The symbols type to use when drawing the tree: double, thick, rounded, normal")
+	flag.StringVar(&style, "style", "normal", "The style to use when drawing the tree: double, thick, rounded, edge, normal")
 	flag.Parse()
 
 	symbols := tree.DefaultSymbols()
-	switch symbolsType {
+	switch style {
 	case "thick":
 		symbols = tree.ThickSymbols()
 	case "rounded":
 		symbols = tree.RoundedSymbols()
 	case "double":
 		symbols = tree.DoubleSymbols()
+	case "edge":
+		symbols = tree.NormalEdgeSymbols()
+	case "thickedge":
+		symbols = tree.ThickEdgeSymbols()
 	case "", "normal":
 	default:
-		fmt.Fprintf(os.Stderr, "invalid symbols type, using default 'normal'\n")
+		fmt.Fprintf(os.Stderr, "invalid style type, using default 'normal'\n")
 	}
 
 	path := RootPath

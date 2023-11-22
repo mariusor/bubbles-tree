@@ -77,7 +77,7 @@ func c(c ...*n) func(*n) {
 	return func(nn *n) {
 		for i, nnn := range c {
 			if i == len(c)-1 {
-				nnn.s |= NodeLastChild
+				nnn.s |= nodeLastChild
 			}
 			nnn.p = nn
 			nn.c = append(nn.c, nnn)
@@ -117,7 +117,7 @@ func tn(name string, fns ...func(*n)) *n {
 // m.render()
 
 var treeOne = tn("tmp",
-	st(NodeLastChild),
+	st(nodeLastChild),
 	c(
 		tn("example1"),
 		tn("test",
@@ -126,12 +126,12 @@ var treeOne = tn("tmp",
 					c(
 						tn("file2"),
 						tn("file4"),
-						tn("lastchild", st(NodeLastChild), c(tn("file", st(NodeLastChild)))),
+						tn("lastchild", st(nodeLastChild), c(tn("file", st(nodeLastChild)))),
 					),
 				),
 				tn("file1"),
 				tn("file3"),
-				tn("file5", st(NodeLastChild)),
+				tn("file5", st(nodeLastChild)),
 			),
 		),
 	),
@@ -150,107 +150,106 @@ func Test_showTreeSymbolAtPos(t *testing.T) {
 		{
 			name: "nil",
 			args: args{},
-			want: false,
+			want: true,
 		},
 		{
 			name: "no parent - position 0",
 			args: args{tn("tmp"), 0},
-			want: true,
+			want: false,
 		},
 		{
 			// this is irrelevant, as depth is greater than the actual tree depth
 			name: "no parent - position 10",
 			args: args{tn("tmp"), 10},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp - position 0",
 			args: args{treeOne, 0},
-			want: true,
+			want: false,
 		},
 		{
 			// this is irrelevant, as depth is greater than the actual tree depth
 			name: "/tmp - position 1",
 			args: args{treeOne, 1},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test - position 0",
 			args: args{treeOne.c[1], 0},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test - position 1",
 			args: args{treeOne.c[1], 1},
-			want: true,
+			want: false,
 		},
 		{
 			name: "/tmp/test/example - position 0",
 			args: args{treeOne.c[1].c[0], 0},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test/example - position 1",
 			args: args{treeOne.c[1].c[0], 1},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test/example - position 2",
 			args: args{treeOne.c[1].c[0], 2},
-			want: true,
+			want: false,
 		},
 		{
 			name: "/tmp/test/example/file2 - position 0",
 			args: args{treeOne.c[1].c[0].c[0], 0},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test/example/file2 - position 1",
 			args: args{treeOne.c[1].c[0].c[0], 1},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test/example/file2 - position 2",
 			args: args{treeOne.c[1].c[0].c[0], 2},
-			want: true,
+			want: false,
 		},
 		{
 			name: "/tmp/test/example/file2 - position 3",
 			args: args{treeOne.c[1].c[0].c[0], 3},
-			want: true,
+			want: false,
 		},
-
 		{
 			name: "/tmp/test/example/lastchild/file - position 0",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 0},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test/example/lastchild/file - position 1",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 1},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test/example/lastchild/file - position 2",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 2},
-			want: true,
+			want: false,
 		},
 		{
 			name: "/tmp/test/example/lastchild/file - position 3",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 3},
-			want: false,
+			want: true,
 		},
 		{
 			name: "/tmp/test/example/lastchild/file - position 4",
 			args: args{treeOne.c[1].c[0].c[2].c[0], 4},
-			want: true,
+			want: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := showTreeSymbolAtPos(tt.args.n, tt.args.depth, getDepth(tt.args.n)); got != tt.want {
-				t.Errorf("showTreeSymbolAtPos() = %v, want %v", got, tt.want)
+			if got := renderPaddingAtPos(tt.args.n, tt.args.depth, getDepth(tt.args.n)); got != tt.want {
+				t.Errorf("renderPaddingAtPos() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -336,14 +335,12 @@ func Test_getDepth(t *testing.T) {
 }
 
 var s = lipgloss.NewStyle()
-var dst = Style{&s}
+var dst = Style(s)
 var defaultSymbols = DefaultSymbols()
 var emptyPadding = Padding(dst, defaultSymbols, 1)
-var vertical = draw(dst, defaultSymbols.Continuator, defaultSymbols.Width)
-var verticalAndRight = draw(dst, defaultSymbols.Starter, defaultSymbols.Width)
-var upAndRight = draw(dst, defaultSymbols.Terminator, defaultSymbols.Width)
-var squaredPlus = defaultSymbols.Collapsed
-var squaredMinus = defaultSymbols.Expanded
+var vertical = draw(dst, defaultSymbols.Connector, width(defaultSymbols), 1)
+var verticalAndRight = draw(dst, defaultSymbols.Starter, width(defaultSymbols), 1)
+var upAndRight = draw(dst, defaultSymbols.Terminator, width(defaultSymbols), 1)
 
 func Test_getTreeSymbolForPos(t *testing.T) {
 	type args struct {
@@ -838,7 +835,7 @@ func TestNodes_len(t *testing.T) {
 
 func mockModel(nn ...*n) Model {
 	m := Model{
-		viewport: viewport.New(0, 1),
+		viewport: viewport.New(0, 0),
 		focus:    true,
 		KeyMap:   DefaultKeyMap(),
 		Styles:   DefaultStyles(),
@@ -936,8 +933,8 @@ func TestModel_SetHeight(t *testing.T) {
 	for _, w := range testValues {
 		t.Run(fmt.Sprintf("Height: %d", w), func(t *testing.T) {
 			m := mockModel()
-			if m.viewport.Height != 1 {
-				t.Errorf("invalid height after initialization: %d, expected %d", m.viewport.Height, 1)
+			if m.viewport.Height != 0 {
+				t.Errorf("invalid height after initialization: %d, expected %d", m.viewport.Height, 0)
 			}
 			m.SetHeight(w)
 			if m.viewport.Height != w {
@@ -1056,17 +1053,17 @@ func TestModel_renderNode(t *testing.T) {
 		},
 		{
 			name: "single node",
-			node: tn("test", st(NodeLastChild)),
+			node: tn("test", st(nodeLastChild)),
 			want: upAndRight + "test",
 		},
 		{
 			name: "single node with child collapsed",
-			node: tn("one", st(NodeLastChild|NodeCollapsed), c(tn("two"))),
+			node: tn("one", st(nodeLastChild|NodeCollapsed), c(tn("two"))),
 			want: upAndRight + "one",
 		},
 		{
 			name: "single node with child",
-			node: tn("one", st(NodeLastChild), c(tn("two"))),
+			node: tn("one", st(nodeLastChild), c(tn("two"))),
 			want: upAndRight + "one   \n" +
 				"   " + upAndRight + "two",
 		},

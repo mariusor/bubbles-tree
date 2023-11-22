@@ -17,24 +17,27 @@ import (
 
 type message struct {
 	textarea.Model
+	state    tree.NodeState
 	parent   tree.Node
 	children tree.Nodes
 }
 
 func (m message) Init() tea.Cmd {
+	m.state = tree.NodeIsMultiLine
 	return nil
 }
 
 func (m message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.Model, cmd = m.Model.Update(msg)
+	if st, ok := msg.(tree.NodeState); ok {
+		m.state |= st
+	}
 	return m, cmd
 }
 
 func (m message) View() string {
-	s := strings.Builder{}
-	fmt.Fprintf(&s, "\n%s\n", m.Model.View())
-	return s.String()
+	return m.Model.View()
 }
 
 func (m message) Parent() tree.Node {
@@ -46,8 +49,8 @@ func (m message) Children() tree.Nodes {
 }
 
 func (m message) State() tree.NodeState {
-	var state tree.NodeState = 0
-	if len(m.children) > 0 {
+	state := m.state
+	if len(m.children) > 0 || m.Model.Height() > 0 {
 		state |= tree.NodeCollapsible
 	}
 	return state
@@ -68,14 +71,16 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func buildMessage(parent tree.Node, depth int) message {
-	m := message{
-		Model:  textarea.New(),
-		parent: parent,
-	}
-	m.Model.ShowLineNumbers = false
-	m.Model.SetValue(loremipsum.New().Paragraph())
-	m.Model.SetPromptFunc(1, func(lineIdx int) string { return "" })
+	t := textarea.New()
+	t.ShowLineNumbers = false
+	t.SetPromptFunc(1, func(_ int) string { return "" })
+
+	m := message{Model: t, parent: parent}
 	m.children = buildConversation(depth-1, &m)
+
+	lipsum := fmt.Sprintf("[%d:%d] %s", depth, len(m.children), strings.Trim(loremipsum.New().Sentences(1), "\t \n\r"))
+	m.Model.SetValue(lipsum)
+
 	return m
 }
 
@@ -92,39 +97,27 @@ func buildConversation(depth int, parent tree.Node) tree.Nodes {
 	}
 
 	for i := 0; i < maxMessages; i++ {
-		conv = append(conv, buildMessage(parent, depth))
+		m := buildMessage(parent, depth)
+		conv = append(conv, m)
 	}
 	return conv
 }
 
-type coloredBorder []lipgloss.TerminalColor
-
-var pipe = "  │"
-
-func (c coloredBorder) Padding(_ int) string {
-	return "  "
+type depthStyle struct {
+	lipgloss.Style
+	colors []lipgloss.TerminalColor
 }
 
-func (c coloredBorder) DrawNode(d int) string {
-	return c.drawPipe(d)
+func (ds depthStyle) Width(w int) tree.DepthStyler {
+	ds.Style = ds.Style.Width(w)
+	return ds
 }
 
-func (c coloredBorder) DrawLast(d int) string {
-	return c.drawPipe(d)
+func (ds depthStyle) Render(d int, strs ...string) string {
+	d = d % len(ds.colors)
+	ds.Style = ds.Style.Foreground(ds.colors[d])
+	return ds.Style.Render(strs...)
 }
-
-func (c coloredBorder) DrawVertical(d int) string {
-	return c.drawPipe(d)
-}
-
-func (c coloredBorder) drawPipe(d int) string {
-	d = d % len(c)
-	style := lipgloss.Style{}
-	style = style.Foreground(c[d])
-	return style.Render(pipe)
-}
-
-var _ tree.DrawSymbols = &coloredBorder{}
 
 func main() {
 	var depth int
@@ -132,13 +125,18 @@ func main() {
 	flag.Parse()
 
 	t := tree.New(buildConversation(depth, nil))
-	t.Symbols = coloredBorder{
-		lipgloss.Color("#ff0000"),
-		lipgloss.Color("#00ff00"),
-		lipgloss.Color("#0000ff"),
-		lipgloss.Color("#00ffff"),
-		lipgloss.Color("#ff00ff"),
-		lipgloss.Color("#ffff00"),
+	t.Symbols = tree.ThickEdgeSymbols()
+
+	t.Styles.Symbol = depthStyle{
+		Style: lipgloss.NewStyle(),
+		colors: []lipgloss.TerminalColor{
+			lipgloss.Color("#ff0000"),
+			lipgloss.Color("#00ff00"),
+			lipgloss.Color("#0000ff"),
+			lipgloss.Color("#00ffff"),
+			lipgloss.Color("#ff00ff"),
+			lipgloss.Color("#ffff00"),
+		},
 	}
 	m := quittingTree{Model: t}
 

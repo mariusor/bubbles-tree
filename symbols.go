@@ -1,40 +1,41 @@
 package tree
 
-import "strings"
+import "unicode/utf8"
 
 type Symbols struct {
-	// We should try to copy the API of lipgloss.Border
-	Width int
+	Connector  string
+	Starter    string
+	Terminator string
+	Horizontal string
+}
 
-	Continuator string
-	Starter     string
-	Terminator  string
-	Horizontal  string
-
-	Collapsed string
-	Expanded  string
+func width(s Symbols) int {
+	co := utf8.RuneCount([]byte(s.Connector))
+	st := utf8.RuneCount([]byte(s.Starter))
+	te := utf8.RuneCount([]byte(s.Terminator))
+	return max(max(co, st), te) + 1
 }
 
 // Padding is expected to output a whitespace, or equivalent, used when two nodes
 // at the same level are not children to the same parent.
-func Padding(style Style, s Symbols, _ int) string {
-	return strings.Repeat(" ", s.Width)
+func Padding(style DepthStyler, s Symbols, depth int) string {
+	return draw(style, " ", width(s), depth)
 }
 
 // RenderTerminator is expected to output a terminator marker used for the last node in a list of nodes.
-func RenderTerminator(style Style, s Symbols, _ int) string {
-	return draw(style, s.Terminator, s.Width)
+func RenderTerminator(style DepthStyler, s Symbols, depth int) string {
+	return draw(style, s.Terminator, width(s), depth)
 }
 
 // RenderStarter is expected to output the marker used for every node in the tree.
-func RenderStarter(style Style, s Symbols, _ int) string {
-	return draw(style, s.Starter, s.Width)
+func RenderStarter(style DepthStyler, s Symbols, depth int) string {
+	return draw(style, s.Starter, width(s), depth)
 }
 
-// RenderContinuator is expected to output a continuator marker used to connect two nodes
+// RenderConnector is expected to output a continuator marker used to connect two nodes
 // which are children on the same parent.
-func RenderContinuator(style Style, s Symbols, _ int) string {
-	return draw(style, s.Continuator, s.Width)
+func RenderConnector(style DepthStyler, s Symbols, depth int) string {
+	return draw(style, s.Connector, width(s), depth)
 }
 
 // DefaultSymbols returns a set of default Symbols for drawing the tree.
@@ -44,45 +45,39 @@ func DefaultSymbols() Symbols {
 
 var (
 	normalSymbols = Symbols{
-		Width:       3,
-		Starter:     "├─",
-		Continuator: "│ ",
-		Terminator:  "└─",
+		Starter:    "├─",
+		Connector:  "│ ",
+		Terminator: "└─",
 	}
 
 	roundedSymbols = Symbols{
-		Width:       3,
-		Starter:     "├─",
-		Continuator: "│ ",
-		Terminator:  "╰─",
+		Starter:    "├─",
+		Connector:  "│ ",
+		Terminator: "╰─",
 	}
 
 	thickSymbols = Symbols{
-		Width:       3,
-		Starter:     "┣━",
-		Continuator: "┃ ",
-		Terminator:  "┗━",
+		Starter:    "┣━",
+		Connector:  "┃ ",
+		Terminator: "┗━",
 	}
 
 	doubleSymbols = Symbols{
-		Width:       3,
-		Starter:     "╠═",
-		Continuator: "║",
-		Terminator:  "╚═",
-	}
-
-	thickEdgeSymbols = Symbols{
-		Width:       2,
-		Starter:     " ╷",
-		Continuator: " │",
-		Terminator:  " ╵",
+		Starter:    "╠═",
+		Connector:  "║",
+		Terminator: "╚═",
 	}
 
 	normalEdgeSymbols = Symbols{
-		Width:       2,
-		Starter:     " ╻",
-		Continuator: " ┃",
-		Terminator:  " ╹",
+		Starter:    "╷",
+		Connector:  "│",
+		Terminator: "╵",
+	}
+
+	thickEdgeSymbols = Symbols{
+		Starter:    "╻",
+		Connector:  "┃",
+		Terminator: "╹",
 	}
 )
 
@@ -106,6 +101,10 @@ func ThickSymbols() Symbols {
 // DoubleSymbols returns a symbols comprised of two thin strokes.
 func DoubleSymbols() Symbols {
 	return doubleSymbols
+}
+
+func NormalEdgeSymbols() Symbols {
+	return normalEdgeSymbols
 }
 
 func ThickEdgeSymbols() Symbols {
