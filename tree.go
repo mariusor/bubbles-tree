@@ -28,8 +28,8 @@ const (
 	NodeCollapsible
 	// NodeHidden hints that the current node is not going to be displayed
 	NodeHidden
-	// nodeLastChild shows the node to be the last in the children list
-	nodeLastChild
+	// NodeLastChild shows the node to be the last in the children list
+	NodeLastChild
 	// nodeHasPreviousSibling shows if the node has siblings
 	nodeHasPreviousSibling
 	// NodeIsMultiLine shows if the node should not be truncated to the viewport's max width
@@ -607,7 +607,7 @@ func isCollapsible(n Node) bool {
 }
 
 func isLastNode(n Node) bool {
-	return n.State().Is(nodeLastChild)
+	return n.State().Is(NodeLastChild)
 }
 
 func isSelected(n Node) bool {
@@ -642,7 +642,7 @@ func (m *Model) renderNodes(nl Nodes) []string {
 			hints |= NodeCollapsible
 		}
 		if i == len(nl)-1 {
-			hints |= nodeLastChild
+			hints |= NodeLastChild
 		}
 		n.Update(n.State() | hints)
 		if out := m.renderNode(n); len(out) > 0 {

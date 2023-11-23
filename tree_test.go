@@ -77,7 +77,7 @@ func c(c ...*n) func(*n) {
 	return func(nn *n) {
 		for i, nnn := range c {
 			if i == len(c)-1 {
-				nnn.s |= nodeLastChild
+				nnn.s |= NodeLastChild
 			}
 			nnn.p = nn
 			nn.c = append(nn.c, nnn)
@@ -117,7 +117,7 @@ func tn(name string, fns ...func(*n)) *n {
 // m.render()
 
 var treeOne = tn("tmp",
-	st(nodeLastChild),
+	st(NodeLastChild),
 	c(
 		tn("example1"),
 		tn("test",
@@ -126,12 +126,12 @@ var treeOne = tn("tmp",
 					c(
 						tn("file2"),
 						tn("file4"),
-						tn("lastchild", st(nodeLastChild), c(tn("file", st(nodeLastChild)))),
+						tn("lastchild", st(NodeLastChild), c(tn("file", st(NodeLastChild)))),
 					),
 				),
 				tn("file1"),
 				tn("file3"),
-				tn("file5", st(nodeLastChild)),
+				tn("file5", st(NodeLastChild)),
 			),
 		),
 	),
@@ -1053,17 +1053,17 @@ func TestModel_renderNode(t *testing.T) {
 		},
 		{
 			name: "single node",
-			node: tn("test", st(nodeLastChild)),
+			node: tn("test", st(NodeLastChild)),
 			want: upAndRight + "test",
 		},
 		{
 			name: "single node with child collapsed",
-			node: tn("one", st(nodeLastChild|NodeCollapsed), c(tn("two"))),
+			node: tn("one", st(NodeLastChild|NodeCollapsed), c(tn("two"))),
 			want: upAndRight + "one",
 		},
 		{
 			name: "single node with child",
-			node: tn("one", st(nodeLastChild), c(tn("two"))),
+			node: tn("one", st(NodeLastChild), c(tn("two"))),
 			want: upAndRight + "one   \n" +
 				"   " + upAndRight + "two",
 		},
