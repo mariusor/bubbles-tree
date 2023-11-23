@@ -377,16 +377,6 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
-func updateChildren(m tea.Msg, children ...Node) (Nodes, tea.Msg) {
-	for i, c := range children {
-		cu, _ := c.Update(m)
-		if c, ok := cu.(Node); ok {
-			children[i] = c
-		}
-	}
-	return children, nil
-}
-
 // Update is the Tea update function which binds keystrokes to pagination.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.focus {
