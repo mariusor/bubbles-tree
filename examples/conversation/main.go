@@ -5,18 +5,16 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	tree "github.com/mariusor/bubbles-tree"
-	"gopkg.in/loremipsum.v1"
 )
 
 type message struct {
-	textarea.Model
+	viewport.Model
 	state    tree.NodeState
 	parent   tree.Node
 	children tree.Nodes
@@ -50,7 +48,7 @@ func (m message) Children() tree.Nodes {
 
 func (m message) State() tree.NodeState {
 	state := m.state
-	if len(m.children) > 0 || m.Model.Height() > 0 {
+	if len(m.children) > 0 || m.Model.Height > 0 {
 		state |= tree.NodeCollapsible
 	}
 	return state
@@ -71,15 +69,22 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func buildMessage(parent tree.Node, depth int) message {
-	t := textarea.New()
-	t.ShowLineNumbers = false
-	t.SetPromptFunc(1, func(_ int) string { return "" })
+	t := viewport.New(0, 0)
 
 	m := message{Model: t, parent: parent}
 	m.children = buildConversation(depth-1, &m)
 
-	lipsum := fmt.Sprintf("[%d:%d] %s", depth, len(m.children), strings.Trim(loremipsum.New().Sentences(1), "\t \n\r"))
-	m.Model.SetValue(lipsum)
+	bold := lipgloss.NewStyle().Bold(true)
+	var title string
+	if parent == nil {
+		title = bold.Render("Root node")
+	} else {
+		title = bold.Render("Child node")
+	}
+	lipsum := lipgloss.JoinVertical(lipgloss.Top, title, "Sphinx of black quartz, judge my vow!\nThe quick brown fox jumps over the lazy dog.")
+	m.Model.Height = lipgloss.Height(lipsum) + 2
+	m.Model.SetContent(lipsum)
+	m.Model.Style = m.Model.Style.Foreground(lipgloss.Color("silver")).PaddingTop(1).PaddingBottom(1)
 
 	return m
 }
