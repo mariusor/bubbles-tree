@@ -56,15 +56,16 @@ type Node interface {
 // New initializes a new Model
 // It sets the default keymap, styles and symbols.
 func New(t Nodes) Model {
+	vp := viewport.New(0, 0)
 	return Model{
+		Model:   &vp,
 		KeyMap:  DefaultKeyMap(),
 		Styles:  DefaultStyles(),
 		Symbols: DefaultSymbols(),
 
 		tree: t,
 
-		viewport: viewport.New(0, 0),
-		focus:    true,
+		focus: true,
 	}
 }
 
@@ -239,6 +240,8 @@ func (m *Model) currentNode() Node {
 
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
+	*viewport.Model
+
 	KeyMap  KeyMap
 	Styles  Styles
 	Symbols Symbols
@@ -247,8 +250,6 @@ type Model struct {
 	cursor int
 
 	tree Nodes
-
-	viewport viewport.Model
 }
 
 func (m *Model) Children() Nodes {
@@ -275,7 +276,7 @@ func (m *Model) GotoTop() tea.Cmd {
 // PastBottom returns whether the viewport is scrolled beyond the last
 // line. This can happen when adjusting the viewport height.
 func (m *Model) PastBottom() bool {
-	return m.viewport.PastBottom()
+	return m.Model.PastBottom()
 }
 
 // GotoBottom moves the selection to the last row.
@@ -297,41 +298,41 @@ func (m *Model) ToggleExpand() {
 
 // SetWidth sets the width of the viewport of the tree.
 func (m *Model) SetWidth(w int) {
-	m.viewport.Width = w
+	m.Model.Width = w
 }
 
 // SetHeight sets the height of the viewport of the tree.
 func (m *Model) SetHeight(h int) {
-	m.viewport.Height = h
+	m.Model.Height = h
 }
 
 // Height returns the viewport height of the tree.
 func (m *Model) Height() int {
-	return m.viewport.Height
+	return m.Model.Height
 }
 
 // Width returns the viewport width of the tree.
 func (m *Model) Width() int {
-	return m.viewport.Width
+	return m.Model.Width
 }
 
 // YOffset returns the viewport vertical scroll position of the tree.
 func (m *Model) YOffset() int {
-	return m.viewport.YOffset
+	return m.Model.YOffset
 }
 
 // SetYOffset sets Y offset of the tree's viewport.
 func (m *Model) SetYOffset(n int) {
-	m.viewport.SetYOffset(n)
+	m.SetYOffset(n)
 }
 
 // ScrollPercent returns the amount scrolled as a float between 0 and 1.
 func (m *Model) ScrollPercent() float64 {
-	if m.viewport.Height >= len(m.tree.visibleNodes()) {
+	if m.Model.Height >= len(m.tree.visibleNodes()) {
 		return 1.0
 	}
-	y := float64(m.viewport.YOffset)
-	h := float64(m.viewport.Height)
+	y := float64(m.Model.YOffset)
+	h := float64(m.Model.Height)
 	t := float64(len(m.tree.visibleNodes()))
 	v := y / (t - h)
 	return math.Max(0.0, math.Min(1.0, v))
@@ -347,14 +348,14 @@ func (m *Model) SetCursor(pos int) tea.Cmd {
 	cursor := clamp(pos, 0, len(m.tree.visibleNodes())-1)
 
 	yOffset := -1
-	if cursor < m.viewport.YOffset {
+	if cursor < m.Model.YOffset {
 		yOffset = cursor
 	}
-	if cursor > (m.viewport.YOffset + (m.viewport.Height - 1)) {
-		yOffset = cursor - m.viewport.Height + 1
+	if cursor > (m.Model.YOffset + (m.Model.Height - 1)) {
+		yOffset = cursor - m.Model.Height + 1
 	}
 	if yOffset > -1 {
-		m.viewport.SetYOffset(yOffset)
+		m.Model.SetYOffset(yOffset)
 	}
 	return m.setCurrentNode(cursor)
 }
@@ -400,13 +401,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.LineDown):
 			cmd = m.MoveDown(1)
 		case key.Matches(msg, m.KeyMap.PageUp):
-			cmd = m.MoveUp(m.viewport.Height)
+			cmd = m.MoveUp(m.Model.Height)
 		case key.Matches(msg, m.KeyMap.PageDown):
-			cmd = m.MoveDown(m.viewport.Height)
+			cmd = m.MoveDown(m.Model.Height)
 		case key.Matches(msg, m.KeyMap.HalfPageUp):
-			cmd = m.MoveUp(m.viewport.Height / 2)
+			cmd = m.MoveUp(m.Model.Height / 2)
 		case key.Matches(msg, m.KeyMap.HalfPageDown):
-			cmd = m.MoveDown(m.viewport.Height / 2)
+			cmd = m.MoveDown(m.Model.Height / 2)
 		case key.Matches(msg, m.KeyMap.LineDown):
 			cmd = m.MoveDown(1)
 		case key.Matches(msg, m.KeyMap.GotoTop):
@@ -429,10 +430,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the pagination to a string.
 func (m *Model) View() string {
 	renderedRows := m.render()
-	m.viewport.SetContent(
+	m.Model.SetContent(
 		lipgloss.JoinVertical(lipgloss.Left, renderedRows...),
 	)
-	return m.viewport.View()
+	return m.Model.View()
 }
 
 // Focused returns the focus state of the tree.
@@ -644,7 +645,7 @@ func (m *Model) renderNodes(nl Nodes) []string {
 }
 
 func (m *Model) render() []string {
-	if m.viewport.Height+m.viewport.Width == 0 {
+	if m.Model.Height+m.Model.Width == 0 {
 		return nil
 	}
 

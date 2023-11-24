@@ -834,12 +834,13 @@ func TestNodes_len(t *testing.T) {
 }
 
 func mockModel(nn ...*n) Model {
+	vp := viewport.New(0, 0)
 	m := Model{
-		viewport: viewport.New(0, 0),
-		focus:    true,
-		KeyMap:   DefaultKeyMap(),
-		Styles:   DefaultStyles(),
-		Symbols:  DefaultSymbols(),
+		Model:   &vp,
+		focus:   true,
+		KeyMap:  DefaultKeyMap(),
+		Styles:  DefaultStyles(),
+		Symbols: DefaultSymbols(),
 	}
 	if len(nn) == 0 {
 		return m
@@ -912,12 +913,12 @@ func TestModel_SetWidth(t *testing.T) {
 	for _, w := range testValues {
 		t.Run(fmt.Sprintf("Width: %d", w), func(t *testing.T) {
 			m := mockModel()
-			if m.viewport.Width != 0 {
-				t.Errorf("invalid width after initialization: %d, expected %d", m.viewport.Width, 0)
+			if m.Model.Width != 0 {
+				t.Errorf("invalid width after initialization: %d, expected %d", m.Model.Width, 0)
 			}
 			m.SetWidth(w)
-			if m.viewport.Width != w {
-				t.Errorf("invalid width after SetWidth(): %d, expected %d", m.viewport.Width, w)
+			if m.Model.Width != w {
+				t.Errorf("invalid width after SetWidth(): %d, expected %d", m.Model.Width, w)
 			}
 			if m.Width() != w {
 				t.Errorf("invalid value returned by Width(): %d, expected %d", m.Width(), w)
@@ -933,12 +934,12 @@ func TestModel_SetHeight(t *testing.T) {
 	for _, w := range testValues {
 		t.Run(fmt.Sprintf("Height: %d", w), func(t *testing.T) {
 			m := mockModel()
-			if m.viewport.Height != 0 {
-				t.Errorf("invalid height after initialization: %d, expected %d", m.viewport.Height, 0)
+			if m.Model.Height != 0 {
+				t.Errorf("invalid height after initialization: %d, expected %d", m.Model.Height, 0)
 			}
 			m.SetHeight(w)
-			if m.viewport.Height != w {
-				t.Errorf("invalid width after SetHeight(): %d, expected %d", m.viewport.Height, w)
+			if m.Model.Height != w {
+				t.Errorf("invalid width after SetHeight(): %d, expected %d", m.Model.Height, w)
 			}
 			if m.Height() != w {
 				t.Errorf("invalid value returned by Height(): %d, expected %d", m.Height(), w)
@@ -998,29 +999,29 @@ func TestModel_Blur(t *testing.T) {
 func TestModel_View(t *testing.T) {
 	tests := []struct {
 		name     string
-		viewport viewport.Model
+		viewport *viewport.Model
 		want     string
 	}{
 		{
 			name:     "empty",
-			viewport: viewport.Model{},
+			viewport: &viewport.Model{},
 			want:     (viewport.Model{}).View(),
 		},
 		{
 			name:     "1x1",
-			viewport: viewport.Model{Width: 1, Height: 1},
+			viewport: &viewport.Model{Width: 1, Height: 1},
 			want:     (viewport.Model{Width: 1, Height: 1}).View(),
 		},
 		{
 			name:     "1x1 - using selectedStyle",
-			viewport: viewport.Model{Width: 1, Height: 1, Style: defaultSelectedStyle},
+			viewport: &viewport.Model{Width: 1, Height: 1, Style: defaultSelectedStyle},
 			want:     (viewport.Model{Width: 1, Height: 1, Style: defaultSelectedStyle}).View(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := mockModel()
-			m.viewport = tt.viewport
+			m.Model = tt.viewport
 			if got := m.View(); got != tt.want {
 				t.Errorf("View() = %v, want %v", got, tt.want)
 			}
