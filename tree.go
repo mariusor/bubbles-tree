@@ -393,6 +393,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.SetHeight(msg.Height)
 		m.SetWidth(msg.Width)
+		for _, n := range m.tree.visibleNodes() {
+			nw := msg.Width - width(m.Symbols)*getDepth(n)
+			n.Update(tea.WindowSizeMsg{Width: nw, Height: 1})
+		}
 		return m, m.setCurrentNode(m.cursor)
 	case tea.KeyMsg:
 		var cmd tea.Cmd
