@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/truncate"
 )
 
 // NodeState is used for passing information from a Treeish element to the view itself
@@ -550,6 +551,8 @@ func (m *Model) renderPrefixForMultiLineNode(t Node, lineCount int) string {
 	return prefix.String()
 }
 
+const Ellipsis = "…"
+
 func (m *Model) renderNode(t Node) string {
 	if t == nil {
 		return ""
@@ -566,17 +569,20 @@ func (m *Model) renderNode(t Node) string {
 	if isSelected(t) {
 		style = m.Styles.Selected
 	}
-	style = style.MaxWidth(m.Width())
-	render := style.Render
 
-	name = render(name)
 	if lineCount := lipgloss.Height(name); lineCount > 1 {
 		prefix = m.renderPrefixForMultiLineNode(t, lineCount)
 	} else {
 		prefix = m.renderPrefixForSingleLineNode(t)
 	}
 
-	node := lipgloss.JoinHorizontal(lipgloss.Left, prefix, name)
+	pw := lipgloss.Width(prefix)
+	nw := m.Width() - pw
+	render := style.Width(nw).MaxWidth(nw - 1).Render
+	if lipgloss.Width(name) > nw {
+		name = truncate.StringWithTail(name, uint(nw-1), Ellipsis)
+	}
+	node := lipgloss.JoinHorizontal(lipgloss.Left, prefix, render(name))
 	if isExpanded(t) && len(t.Children()) > 0 {
 		renderedChildren := m.renderNodes(t.Children())
 		node = lipgloss.JoinVertical(lipgloss.Top, node, lipgloss.JoinVertical(lipgloss.Left, renderedChildren...))
