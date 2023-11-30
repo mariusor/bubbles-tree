@@ -22,7 +22,7 @@ type message struct {
 
 func (m message) Init() tea.Cmd {
 	m.state = tree.NodeIsMultiLine
-	return nil
+	return func() tea.Msg { return "noop" }
 }
 
 func (m message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

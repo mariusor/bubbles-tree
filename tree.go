@@ -229,7 +229,7 @@ func (m *Model) setCurrentNode(cursor int) tea.Cmd {
 		current.Update(current.State() | NodeSelected)
 		return m.positionChanged
 	}
-	return nil
+	return noop
 }
 
 func (m *Model) currentNode() Node {
@@ -347,6 +347,9 @@ func (m *Model) Cursor() int {
 // SetCursor returns the index of the selected row.
 func (m *Model) SetCursor(pos int) tea.Cmd {
 	cursor := clamp(pos, 0, len(m.tree.visibleNodes())-1)
+	if cursor == m.cursor {
+		return noop
+	}
 
 	yOffset := -1
 	if cursor < m.Model.YOffset {
@@ -371,6 +374,10 @@ func erred(err error) func() tea.Msg {
 	}
 }
 
+func noop() tea.Msg {
+	return "noop"
+}
+
 func (m *Model) init() tea.Msg {
 	return Msg("initialized")
 }
@@ -382,7 +389,7 @@ func (m *Model) Init() tea.Cmd {
 // Update is the Tea update function which binds keystrokes to pagination.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.focus {
-		return m, nil
+		return m, noop
 	}
 
 	var err error
