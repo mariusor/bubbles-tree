@@ -374,9 +374,7 @@ func erred(err error) func() tea.Msg {
 	}
 }
 
-func noop() tea.Msg {
-	return "noop"
-}
+var noop tea.Cmd = nil
 
 func (m *Model) init() tea.Msg {
 	return Msg("initialized")

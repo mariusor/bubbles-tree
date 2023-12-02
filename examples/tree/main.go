@@ -30,7 +30,7 @@ func (n *pathNode) Parent() tree.Node {
 }
 
 func (n *pathNode) Init() tea.Cmd {
-	return func() tea.Msg { return "noop" }
+	return nil
 }
 
 const (
@@ -76,7 +76,7 @@ func (n *pathNode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		n.state = m
 	}
 
-	return n, func() tea.Msg { return "noop" }
+	return n, nil
 }
 
 func isUnixHiddenFile(name string) bool {
