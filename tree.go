@@ -570,9 +570,6 @@ func (m *Model) renderNode(t Node) string {
 	prefix := ""
 
 	name := t.View()
-	hints := t.State()
-
-	t.Update(hints)
 
 	style := m.Styles.Line
 	if isSelected(t) {
@@ -629,17 +626,17 @@ func isMultiLine(n Node) bool {
 }
 
 func (m *Model) renderNodes(nl Nodes) []string {
-	if len(nl) == 0 || len(m.tree) == 0 {
+	if len(nl) == 0 {
 		return nil
 	}
 
 	rendered := make([]string, 0)
 
 	for i, n := range nl {
-		var hints NodeState = 0
 		if isHidden(n) {
 			continue
 		}
+		var hints NodeState = 0
 
 		if len(nl) > 0 && i > 0 {
 			hints |= nodeHasPreviousSibling
@@ -650,6 +647,7 @@ func (m *Model) renderNodes(nl Nodes) []string {
 		if i == len(nl)-1 {
 			hints |= NodeLastChild
 		}
+
 		n.Update(n.State() | hints)
 		if out := m.renderNode(n); len(out) > 0 {
 			rendered = append(rendered, out)
