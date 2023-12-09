@@ -35,6 +35,8 @@ const (
 	nodeHasPreviousSibling
 	// NodeIsMultiLine shows if the node should not be truncated to the viewport's max width
 	NodeIsMultiLine
+	// nodeIsInView shows if the node will be rendered
+	nodeIsInView
 )
 
 var (
@@ -42,17 +44,6 @@ var (
 	defaultSelectedStyle = defaultStyle.Reverse(true)
 	defaultSymbolStyle   = defaultStyle
 )
-
-// Node represents the base model for the elements of the Treeish implementation
-type Node interface {
-	tea.Model
-	// Parent should return the parent of the current node, or nil if a root node.
-	Parent() Node
-	// Children should return a list of Nodes which represent the children of the current node.
-	Children() Nodes
-	// State should return the annotation for the current node, which are used for computing various display states.
-	State() NodeState
-}
 
 // New initializes a new Model
 // It sets the default keymap, styles and symbols.
@@ -68,54 +59,6 @@ func New(t Nodes) Model {
 
 		focus: true,
 	}
-}
-
-// Nodes is a slice of Node elements, usually representing the children of a Node.
-type Nodes []Node
-
-func (n Nodes) at(i int) Node {
-	j := 0
-	for _, p := range n {
-		if isHidden(p) {
-			continue
-		}
-		if j == i {
-			return p
-		}
-		if isExpanded(p) && p.Children() != nil {
-			if nn := p.Children().at(i - j - 1); nn != nil {
-				return nn
-			}
-			j += len(p.Children().visibleNodes())
-		}
-		j++
-	}
-	return nil
-}
-
-func (n Nodes) len() int {
-	l := 0
-	for _, node := range n {
-		l++
-		if node.Children() != nil {
-			l += node.Children().len()
-		}
-	}
-	return l
-}
-
-func (n Nodes) visibleNodes() Nodes {
-	visible := make(Nodes, 0)
-	for _, nn := range n {
-		if isHidden(nn) {
-			continue
-		}
-		visible = append(visible, nn)
-		if isCollapsible(nn) && isExpanded(nn) {
-			visible = append(visible, nn.Children().visibleNodes()...)
-		}
-	}
-	return visible
 }
 
 // KeyMap defines keybindings.
@@ -222,7 +165,6 @@ func (m *Model) setCurrentNode(cursor int) tea.Cmd {
 		if previous := m.currentNode(); previous != nil {
 			previous.Update(previous.State() ^ NodeSelected)
 		}
-
 		m.cursor = cursor
 	}
 	if current := m.currentNode(); current != nil {
@@ -305,6 +247,7 @@ func (m *Model) SetWidth(w int) {
 // SetHeight sets the height of the viewport of the tree.
 func (m *Model) SetHeight(h int) {
 	m.Model.Height = h
+	m.updateNodeVisibility(h)
 }
 
 // Height returns the viewport height of the tree.
@@ -324,7 +267,8 @@ func (m *Model) YOffset() int {
 
 // SetYOffset sets Y offset of the tree's viewport.
 func (m *Model) SetYOffset(n int) {
-	m.SetYOffset(n)
+	m.Model.SetYOffset(n)
+	m.updateNodeVisibility(m.Height())
 }
 
 // ScrollPercent returns the amount scrolled as a float between 0 and 1.
@@ -384,6 +328,27 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
+func (m *Model) updateNodeVisibility(height int) tea.Cmd {
+	if height == 0 {
+		return noop
+	}
+	start := m.YOffset()
+	end := start + height
+
+	cmds := make([]tea.Cmd, 0)
+	for i, nn := range m.tree.visibleNodes() {
+		st := nn.State()
+		if i >= start && i < end {
+			_, cmd := nn.Update(st | nodeIsInView)
+			cmds = append(cmds, cmd)
+			continue
+		}
+		_, cmd := nn.Update(st ^ nodeIsInView)
+		cmds = append(cmds, cmd)
+	}
+	return tea.Batch()
+}
+
 // Update is the Tea update function which binds keystrokes to pagination.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.focus {
@@ -396,13 +361,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Msg:
 		return m, m.setCurrentNode(m.cursor)
 	case tea.WindowSizeMsg:
-		m.SetHeight(msg.Height)
 		m.SetWidth(msg.Width)
-		for _, n := range m.tree.visibleNodes() {
-			nw := msg.Width - width(m.Symbols)*getDepth(n)
-			n.Update(tea.WindowSizeMsg{Width: nw, Height: 1})
-		}
-		return m, m.setCurrentNode(m.cursor)
+		m.SetHeight(msg.Height)
+		//cmd := m.tree.Update(tea.WindowSizeMsg{Width: msg.Width, Height: 1})
+		return m, tea.Batch(m.setCurrentNode(m.cursor))
 	case tea.KeyMsg:
 		var cmd tea.Cmd
 		switch {
@@ -427,7 +389,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.Expand):
 			m.ToggleExpand()
 		}
-		return m, cmd
+
+		return m, tea.Batch(cmd, m.updateNodeVisibility(m.Height()))
 	}
 
 	if err != nil {
@@ -601,6 +564,10 @@ func isHidden(n Node) bool {
 	return n.State().Is(NodeHidden)
 }
 
+func shouldBeRendered(n Node) bool {
+	return n.State().Is(nodeIsInView)
+}
+
 func isExpanded(n Node) bool {
 	return !n.State().Is(NodeCollapsed)
 }
@@ -633,7 +600,7 @@ func (m *Model) renderNodes(nl Nodes) []string {
 	rendered := make([]string, 0)
 
 	for i, n := range nl {
-		if isHidden(n) {
+		if isHidden(n) || !shouldBeRendered(n) {
 			continue
 		}
 		var hints NodeState = 0

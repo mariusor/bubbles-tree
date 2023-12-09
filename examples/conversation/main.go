@@ -25,7 +25,7 @@ func (m message) Init() tea.Cmd {
 	return nil
 }
 
-func (m message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.Model, cmd = m.Model.Update(msg)
 	if st, ok := msg.(tree.NodeState); ok {
@@ -54,7 +54,7 @@ func (m message) State() tree.NodeState {
 	return state
 }
 
-var _ tree.Node = message{}
+var _ tree.Node = new(message)
 
 type quittingTree struct {
 	tree.Model
@@ -103,7 +103,7 @@ func buildConversation(depth int, parent tree.Node) tree.Nodes {
 
 	for i := 0; i < maxMessages; i++ {
 		m := buildMessage(parent, depth)
-		conv = append(conv, m)
+		conv = append(conv, &m)
 	}
 	return conv
 }
@@ -131,6 +131,7 @@ func main() {
 
 	t := tree.New(buildConversation(depth, nil))
 	t.Symbols = tree.ThickEdgeSymbols()
+	t.Styles.Selected = t.Styles.Line
 
 	t.Styles.Symbol = depthStyle{
 		Style: lipgloss.NewStyle(),

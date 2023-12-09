@@ -69,7 +69,7 @@ func p(p *n) func(*n) {
 
 func st(st NodeState) func(*n) {
 	return func(nn *n) {
-		nn.s = st
+		nn.s |= st
 	}
 }
 
@@ -1078,6 +1078,7 @@ func TestModel_renderNode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := mockModel()
 			m.tree = Nodes{tt.node}
+			m.updateNodeVisibility(len(m.tree.visibleNodes()))
 
 			got := m.renderNode(tt.node)
 			linesGot := strings.Split(got, "\n")
