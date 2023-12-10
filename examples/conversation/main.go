@@ -20,7 +20,7 @@ type message struct {
 	children tree.Nodes
 }
 
-func (m message) Init() tea.Cmd {
+func (m *message) Init() tea.Cmd {
 	m.state = tree.NodeIsMultiLine
 	return nil
 }
@@ -34,19 +34,19 @@ func (m *message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m message) View() string {
+func (m *message) View() string {
 	return m.Model.View()
 }
 
-func (m message) Parent() tree.Node {
+func (m *message) Parent() tree.Node {
 	return m.parent
 }
 
-func (m message) Children() tree.Nodes {
+func (m *message) Children() tree.Nodes {
 	return m.children
 }
 
-func (m message) State() tree.NodeState {
+func (m *message) State() tree.NodeState {
 	state := m.state
 	if len(m.children) > 0 || m.Model.Height > 0 {
 		state |= tree.NodeCollapsible
