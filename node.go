@@ -2,6 +2,9 @@ package tree
 
 import tea "github.com/charmbracelet/bubbletea"
 
+// NodeState is used for passing information from a Treeish element to the view itself
+type NodeState uint16
+
 // Node represents the base model for the elements of the Treeish implementation
 type Node interface {
 	tea.Model
@@ -16,13 +19,26 @@ type Node interface {
 // Nodes is a slice of Node elements, usually representing the children of a Node.
 type Nodes []Node
 
-func OnNodes(nodes Nodes, fn func(n *Node) error) {
-	for _, node := range nodes {
-		if err := fn(&node); err != nil {
-			//
-		}
-	}
-}
+const (
+	NodeNone NodeState = 0
+
+	// NodeCollapsed hints that the current node is collapsed
+	NodeCollapsed NodeState = 1 << iota
+	// NodeSelected hints that the current node should be rendered as selected
+	NodeSelected
+	// NodeCollapsible hints that the current node can be collapsed
+	NodeCollapsible
+	// NodeHidden hints that the current node is not going to be displayed
+	NodeHidden
+	// NodeLastChild shows the node to be the last in the children list
+	NodeLastChild
+	// nodeHasPreviousSibling shows if the node has siblings
+	nodeHasPreviousSibling
+	// NodeIsMultiLine shows if the node should not be truncated to the viewport's max width
+	NodeIsMultiLine
+	// nodeSkipRender shows if the node will not be rendered
+	nodeSkipRender
+)
 
 func (n Nodes) at(i int) Node {
 	j := 0
@@ -83,4 +99,8 @@ func (n Nodes) Update(msg tea.Msg) tea.Cmd {
 		n[i] = nn
 	}
 	return tea.Batch(cmds...)
+}
+
+func (s NodeState) Is(st NodeState) bool {
+	return s&st == st
 }

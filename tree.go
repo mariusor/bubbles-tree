@@ -11,34 +11,6 @@ import (
 	"github.com/muesli/reflow/truncate"
 )
 
-// NodeState is used for passing information from a Treeish element to the view itself
-type NodeState uint16
-
-func (s NodeState) Is(st NodeState) bool {
-	return s&st == st
-}
-
-const (
-	NodeNone NodeState = 0
-
-	// NodeCollapsed hints that the current node is collapsed
-	NodeCollapsed NodeState = 1 << iota
-	// NodeSelected hints that the current node should be rendered as selected
-	NodeSelected
-	// NodeCollapsible hints that the current node can be collapsed
-	NodeCollapsible
-	// NodeHidden hints that the current node is not going to be displayed
-	NodeHidden
-	// NodeLastChild shows the node to be the last in the children list
-	NodeLastChild
-	// nodeHasPreviousSibling shows if the node has siblings
-	nodeHasPreviousSibling
-	// NodeIsMultiLine shows if the node should not be truncated to the viewport's max width
-	NodeIsMultiLine
-	// nodeIsInView shows if the node will be rendered
-	nodeIsInView
-)
-
 var (
 	defaultStyle         = lipgloss.NewStyle()
 	defaultSelectedStyle = defaultStyle.Reverse(true)
@@ -337,13 +309,10 @@ func (m *Model) updateNodeVisibility(height int) tea.Cmd {
 
 	cmds := make([]tea.Cmd, 0)
 	for i, nn := range m.tree.visibleNodes() {
-		st := nn.State()
 		if i >= start && i < end {
-			_, cmd := nn.Update(st | nodeIsInView)
-			cmds = append(cmds, cmd)
 			continue
 		}
-		_, cmd := nn.Update(st ^ nodeIsInView)
+		_, cmd := nn.Update(nn.State() | nodeSkipRender)
 		cmds = append(cmds, cmd)
 	}
 	return tea.Batch()
@@ -564,8 +533,8 @@ func isHidden(n Node) bool {
 	return n.State().Is(NodeHidden)
 }
 
-func shouldBeRendered(n Node) bool {
-	return n.State().Is(nodeIsInView)
+func skipRender(n Node) bool {
+	return n.State().Is(nodeSkipRender)
 }
 
 func isExpanded(n Node) bool {
@@ -600,7 +569,7 @@ func (m *Model) renderNodes(nl Nodes) []string {
 	rendered := make([]string, 0)
 
 	for i, n := range nl {
-		if isHidden(n) || !shouldBeRendered(n) {
+		if isHidden(n) || skipRender(n) {
 			continue
 		}
 		var hints NodeState = 0
