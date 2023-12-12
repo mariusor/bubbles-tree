@@ -17,7 +17,16 @@ type message struct {
 	viewport.Model
 	state    tree.NodeState
 	parent   tree.Node
-	children tree.Nodes
+	children []*message
+}
+
+func (m *message) setChildren(nodes ...tree.Node) {
+	m.children = m.children[:0]
+	for _, nn := range nodes {
+		if c, ok := nn.(*message); ok {
+			m.children = append(m.children, c)
+		}
+	}
 }
 
 func (m *message) Init() tea.Cmd {
@@ -28,8 +37,11 @@ func (m *message) Init() tea.Cmd {
 func (m *message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.Model, cmd = m.Model.Update(msg)
-	if st, ok := msg.(tree.NodeState); ok {
-		m.state |= st
+	switch mm := msg.(type) {
+	case tree.NodeState:
+		m.state |= mm
+	case tree.Nodes:
+		m.setChildren(mm...)
 	}
 	return m, cmd
 }
@@ -43,7 +55,15 @@ func (m *message) Parent() tree.Node {
 }
 
 func (m *message) Children() tree.Nodes {
-	return m.children
+	return treeNodes(m.children)
+}
+
+func treeNodes(pathNodes []*message) tree.Nodes {
+	nodes := make(tree.Nodes, len(pathNodes))
+	for i, n := range pathNodes {
+		nodes[i] = n
+	}
+	return nodes
 }
 
 func (m *message) State() tree.NodeState {
@@ -89,11 +109,11 @@ func buildMessage(parent tree.Node, depth int) message {
 	return m
 }
 
-func buildConversation(depth int, parent tree.Node) tree.Nodes {
+func buildConversation(depth int, parent tree.Node) []*message {
 	if depth == 0 {
 		return nil
 	}
-	conv := make(tree.Nodes, 0)
+	conv := make([]*message, 0)
 	maxMessages := 0
 	for {
 		if maxMessages = rand.Intn(3); maxMessages > 0 {
@@ -129,7 +149,7 @@ func main() {
 	flag.IntVar(&depth, "depth", 2, "The depth to which to build the conversation")
 	flag.Parse()
 
-	t := tree.New(buildConversation(depth, nil))
+	t := tree.New(treeNodes(buildConversation(depth, nil)))
 	t.Symbols = tree.ThickEdgeSymbols()
 	t.Styles.Selected = t.Styles.Line
 

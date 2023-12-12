@@ -74,9 +74,20 @@ func (n *pathNode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case tree.NodeState:
 		n.state = m
+	case tree.Nodes:
+		n.setChildren(m...)
 	}
 
 	return n, nil
+}
+
+func (n *pathNode) setChildren(nodes ...tree.Node) {
+	n.children = n.children[:0]
+	for _, nn := range nodes {
+		if c, ok := nn.(*pathNode); ok {
+			n.children = append(n.children, c)
+		}
+	}
 }
 
 func isUnixHiddenFile(name string) bool {

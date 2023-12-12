@@ -492,6 +492,14 @@ func (m *Model) renderPrefixForMultiLineNode(t Node, lineCount int) string {
 	return prefix.String()
 }
 
+func (m *Model) render() []string {
+	if m.Model.Height+m.Model.Width == 0 {
+		return nil
+	}
+
+	return m.renderNodes(m.Children())
+}
+
 const Ellipsis = "…"
 
 func (m *Model) renderNode(t Node) string {
@@ -529,38 +537,6 @@ func (m *Model) renderNode(t Node) string {
 	return node
 }
 
-func isHidden(n Node) bool {
-	return n.State().Is(NodeHidden)
-}
-
-func skipRender(n Node) bool {
-	return n.State().Is(nodeSkipRender)
-}
-
-func isExpanded(n Node) bool {
-	return !n.State().Is(NodeCollapsed)
-}
-
-func isCollapsible(n Node) bool {
-	return n.State().Is(NodeCollapsible)
-}
-
-func isLastNode(n Node) bool {
-	return n.State().Is(NodeLastChild)
-}
-
-func isSelected(n Node) bool {
-	return n.State().Is(NodeSelected)
-}
-
-func hasPreviousSibling(n Node) bool {
-	return n.State().Is(nodeHasPreviousSibling)
-}
-
-func isMultiLine(n Node) bool {
-	return n.State().Is(NodeIsMultiLine)
-}
-
 func (m *Model) renderNodes(nl Nodes) []string {
 	if len(nl) == 0 {
 		return nil
@@ -593,12 +569,36 @@ func (m *Model) renderNodes(nl Nodes) []string {
 	return rendered
 }
 
-func (m *Model) render() []string {
-	if m.Model.Height+m.Model.Width == 0 {
-		return nil
-	}
+func isHidden(n Node) bool {
+	return n.State().Is(NodeHidden)
+}
 
-	return m.renderNodes(m.Children())
+func skipRender(n Node) bool {
+	return n.State().Is(nodeSkipRender)
+}
+
+func isExpanded(n Node) bool {
+	return !n.State().Is(NodeCollapsed)
+}
+
+func isCollapsible(n Node) bool {
+	return n.State().Is(NodeCollapsible)
+}
+
+func isLastNode(n Node) bool {
+	return n.State().Is(NodeLastChild)
+}
+
+func isSelected(n Node) bool {
+	return n.State().Is(NodeSelected)
+}
+
+func hasPreviousSibling(n Node) bool {
+	return n.State().Is(nodeHasPreviousSibling)
+}
+
+func isMultiLine(n Node) bool {
+	return n.State().Is(NodeIsMultiLine)
 }
 
 func clamp(v, low, high int) int {
