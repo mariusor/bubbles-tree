@@ -15,6 +15,8 @@ import (
 
 type message struct {
 	viewport.Model
+	count    int
+	level    int
 	state    tree.NodeState
 	parent   tree.Node
 	children []*message
@@ -58,6 +60,20 @@ func (m *message) Children() tree.Nodes {
 	return treeNodes(m.children)
 }
 
+func level(p tree.Node) int {
+	if p == nil {
+		return 0
+	}
+	lvl := 0
+	for {
+		if p = p.Parent(); p == nil {
+			break
+		}
+		lvl++
+	}
+	return lvl
+}
+
 func treeNodes(pathNodes []*message) tree.Nodes {
 	nodes := make(tree.Nodes, len(pathNodes))
 	for i, n := range pathNodes {
@@ -88,10 +104,10 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 	return e, cmd
 }
 
-func buildMessage(parent tree.Node, depth int) message {
+func buildMessage(parent tree.Node, depth, count int) message {
 	t := viewport.New(0, 0)
 
-	m := message{Model: t, parent: parent}
+	m := message{Model: t, parent: parent, count: count, level: level(parent) + 1}
 	m.children = buildConversation(depth-1, &m)
 
 	bold := lipgloss.NewStyle().Bold(true)
@@ -99,7 +115,7 @@ func buildMessage(parent tree.Node, depth int) message {
 	if parent == nil {
 		title = bold.Render("Root node")
 	} else {
-		title = bold.Render("Child node")
+		title = bold.Render(fmt.Sprintf("Child node #%d-%d", m.level, m.count))
 	}
 	lipsum := lipgloss.JoinVertical(lipgloss.Top, title, "Sphinx of black quartz, judge my vow!\nThe quick brown fox jumps over the lazy dog.")
 	m.Model.Height = lipgloss.Height(lipsum) + 2
@@ -116,13 +132,13 @@ func buildConversation(depth int, parent tree.Node) []*message {
 	conv := make([]*message, 0)
 	maxMessages := 0
 	for {
-		if maxMessages = rand.Intn(3); maxMessages > 0 {
+		if maxMessages = rand.Intn(10); maxMessages > 0 {
 			break
 		}
 	}
 
 	for i := 0; i < maxMessages; i++ {
-		m := buildMessage(parent, depth)
+		m := buildMessage(parent, depth, i)
 		conv = append(conv, &m)
 	}
 	return conv
