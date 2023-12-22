@@ -37,6 +37,7 @@ const (
 	// NodeIsMultiLine shows if the node should not be truncated to the viewport's max width
 	NodeIsMultiLine
 	// nodeSkipRender shows if the node will not be rendered
+	// NOTE(marius): this might overlap with NodeHidden
 	nodeSkipRender
 )
 
@@ -53,7 +54,7 @@ func (n Nodes) at(i int) Node {
 			if nn := p.Children().at(i - j - 1); nn != nil {
 				return nn
 			}
-			j += len(p.Children().visibleNodes())
+			j += len(p.Children().sequentialNodes())
 		}
 		j++
 	}
@@ -71,18 +72,19 @@ func (n Nodes) len() int {
 	return l
 }
 
-func (n Nodes) visibleNodes() Nodes {
-	visible := make(Nodes, 0)
+// sequentialNodes returns a slice of Nodes as
+func (n Nodes) sequentialNodes() Nodes {
+	seq := make(Nodes, 0)
 	for _, nn := range n {
 		if nn == nil || isHidden(nn) {
 			continue
 		}
-		visible = append(visible, nn)
+		seq = append(seq, nn)
 		if isCollapsible(nn) && isExpanded(nn) {
-			visible = append(visible, nn.Children().visibleNodes()...)
+			seq = append(seq, nn.Children().sequentialNodes()...)
 		}
 	}
-	return visible
+	return seq
 }
 
 func (n Nodes) Update(msg tea.Msg) tea.Cmd {

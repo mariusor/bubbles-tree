@@ -700,8 +700,8 @@ func TestNodes_visibleNodes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.n.visibleNodes(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("visibleNodes() = %v, want %v", got, tt.want)
+			if got := tt.n.sequentialNodes(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("sequentialNodes() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -1078,7 +1078,7 @@ func TestModel_renderNode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := mockModel()
 			m.tree = Nodes{tt.node}
-			m.updateNodeVisibility(len(m.tree.visibleNodes()))
+			m.updateNodeVisibility(0, len(m.tree.sequentialNodes()))
 
 			got := m.renderNode(tt.node)
 			linesGot := strings.Split(got, "\n")

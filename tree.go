@@ -219,7 +219,7 @@ func (m *Model) SetWidth(w int) {
 // SetHeight sets the height of the viewport of the tree.
 func (m *Model) SetHeight(h int) {
 	m.Model.Height = h
-	m.updateNodeVisibility(h)
+	m.updateNodeVisibility(m.YOffset(), h)
 }
 
 // Height returns the viewport height of the tree.
@@ -240,17 +240,17 @@ func (m *Model) YOffset() int {
 // SetYOffset sets Y offset of the tree's viewport.
 func (m *Model) SetYOffset(n int) {
 	m.Model.SetYOffset(n)
-	m.updateNodeVisibility(m.Height())
+	m.updateNodeVisibility(n, m.Height())
 }
 
 // ScrollPercent returns the amount scrolled as a float between 0 and 1.
 func (m *Model) ScrollPercent() float64 {
-	if m.Model.Height >= len(m.tree.visibleNodes()) {
+	if m.Model.Height >= len(m.tree.sequentialNodes()) {
 		return 1.0
 	}
 	y := float64(m.Model.YOffset)
 	h := float64(m.Model.Height)
-	t := float64(len(m.tree.visibleNodes()))
+	t := float64(len(m.tree.sequentialNodes()))
 	v := y / (t - h)
 	return math.Max(0.0, math.Min(1.0, v))
 }
@@ -262,7 +262,7 @@ func (m *Model) Cursor() int {
 
 // SetCursor returns the index of the selected row.
 func (m *Model) SetCursor(pos int) tea.Cmd {
-	cursor := clamp(pos, 0, len(m.tree.visibleNodes())-1)
+	cursor := clamp(pos, 0, len(m.tree.sequentialNodes())-1)
 	if cursor == m.cursor {
 		return noop
 	}
@@ -300,22 +300,29 @@ func (m *Model) Init() tea.Cmd {
 	return m.init
 }
 
-func (m *Model) updateNodeVisibility(height int) tea.Cmd {
+func (m *Model) updateNodeVisibility(start, height int) tea.Cmd {
 	if height == 0 {
 		return noop
 	}
-	start := m.YOffset()
-	end := start + height
+	visibleNodes := m.tree.sequentialNodes()
+	end := start + min(len(visibleNodes), height)
 
 	cmds := make([]tea.Cmd, 0)
-	for i, nn := range m.tree.visibleNodes() {
-		if i >= start && i < end {
-			continue
+	for i, nn := range visibleNodes {
+		var cmd tea.Cmd
+		st := nn.State()
+		if i >= start && i <= end {
+			if st.Is(nodeSkipRender) {
+				_, cmd = nn.Update(st ^ nodeSkipRender)
+			}
+		} else {
+			_, cmd = nn.Update(st | nodeSkipRender)
 		}
-		_, cmd := nn.Update(nn.State() | nodeSkipRender)
-		cmds = append(cmds, cmd)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
-	return tea.Batch()
+	return tea.Batch(cmds...)
 }
 
 // Update is the Tea update function which binds keystrokes to pagination.
@@ -359,7 +366,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ToggleExpand()
 		}
 
-		return m, tea.Batch(cmd, m.updateNodeVisibility(m.Height()))
+		return m, tea.Batch(cmd, m.updateNodeVisibility(m.YOffset(), m.Height()))
 	}
 
 	if err != nil {
@@ -508,8 +515,10 @@ func (m *Model) renderNode(t Node) string {
 	}
 
 	prefix := ""
-
-	name := t.View()
+	name := ""
+	if !skipRender(t) {
+		name = t.View()
+	}
 
 	style := m.Styles.Line
 	if isSelected(t) {
@@ -545,7 +554,7 @@ func (m *Model) renderNodes(nl Nodes) []string {
 	rendered := make([]string, 0)
 
 	for i, n := range nl {
-		if isHidden(n) || skipRender(n) {
+		if isHidden(n) {
 			continue
 		}
 		var hints NodeState = 0
