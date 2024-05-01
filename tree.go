@@ -378,10 +378,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the pagination to a string.
 func (m *Model) View() string {
-	renderedRows := m.render()
-	m.Model.SetContent(
-		lipgloss.JoinVertical(lipgloss.Left, renderedRows...),
-	)
+	if renderedRows := m.render(); len(renderedRows) > 0 {
+		m.Model.SetContent(
+			lipgloss.JoinVertical(lipgloss.Left, renderedRows...),
+		)
+	}
 	return m.Model.View()
 }
 
