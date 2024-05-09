@@ -339,8 +339,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.SetWidth(msg.Width)
 		m.SetHeight(msg.Height)
-		//cmd := m.tree.Update(tea.WindowSizeMsg{Width: msg.Width, Height: 1})
-		return m, tea.Batch(m.setCurrentNode(m.cursor))
+		cmd := m.tree.Update(msg)
+		return m, tea.Batch(cmd, m.setCurrentNode(m.cursor))
 	case tea.KeyMsg:
 		var cmd tea.Cmd
 		switch {
