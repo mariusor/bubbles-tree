@@ -39,6 +39,10 @@ const (
 	// nodeSkipRender shows if the node will not be rendered
 	// NOTE(marius): this might overlap with NodeHidden
 	nodeSkipRender
+
+	// NodeMaxState serves no other purpose than as a sentinel value for outside Node interface
+	// implementations to append their own states.
+	NodeMaxState
 )
 
 func (n Nodes) at(i int) Node {
