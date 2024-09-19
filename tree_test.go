@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/v2/viewport"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -24,8 +24,8 @@ func (n *n) Parent() Node {
 	}
 	return n.p
 }
-func (n *n) Init() tea.Cmd {
-	return nil
+func (n *n) Init() (tea.Model, tea.Cmd) {
+	return n, nil
 }
 func (n *n) View() string {
 	if n == nil {
@@ -952,12 +952,15 @@ func TestModel_Init(t *testing.T) {
 	// NOTE(marius): having the init() function as a Cmd seems iffy and maybe pointless
 	m := mockModel()
 	want := m.init
-	got := m.Init()
+	gotModel, gotCmd := m.Init()
 	if reflect.TypeOf(want).Kind() != reflect.Func {
 		t.Errorf("Init() did not return a function")
 	}
-	if !reflect.DeepEqual(got(), want()) {
-		t.Errorf("Init() = %v, want %v", got(), want())
+	if !reflect.DeepEqual(gotCmd(), want()) {
+		t.Errorf("Init() command = %v, want %v", gotCmd(), want())
+	}
+	if !reflect.DeepEqual(gotModel, &m) {
+		t.Errorf("Init() model = %v, want %v", gotModel, &m)
 	}
 }
 

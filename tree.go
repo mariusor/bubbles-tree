@@ -4,9 +4,9 @@ import (
 	"math"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/viewport"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/truncate"
 )
@@ -296,8 +296,8 @@ func (m *Model) init() tea.Msg {
 	return Msg("initialized")
 }
 
-func (m *Model) Init() tea.Cmd {
-	return m.init
+func (m *Model) Init() (tea.Model, tea.Cmd) {
+	return m, m.init
 }
 
 func (m *Model) updateNodeVisibility(start, height int) tea.Cmd {

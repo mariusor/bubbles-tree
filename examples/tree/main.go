@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/v2/key"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	tree "github.com/mariusor/bubbles-tree"
 )
 
@@ -29,8 +29,8 @@ func (n *pathNode) Parent() tree.Node {
 	return n.parent
 }
 
-func (n *pathNode) Init() tea.Cmd {
-	return nil
+func (n *pathNode) Init() (tea.Model, tea.Cmd) {
+	return n, nil
 }
 
 const (
@@ -166,6 +166,14 @@ func findNodeByPath(nodes []*pathNode, path string) *pathNode {
 
 type quittingTree struct {
 	tree.Model
+}
+
+func (e *quittingTree) Init() (tea.Model, tea.Cmd) {
+	t, cmd := e.Model.Init()
+	if m, ok := t.(*tree.Model); ok {
+		e.Model = *m
+	}
+	return e, cmd
 }
 
 func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {

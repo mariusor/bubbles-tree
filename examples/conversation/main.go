@@ -6,9 +6,9 @@ import (
 	"math/rand"
 	"os"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/viewport"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss"
 	tree "github.com/mariusor/bubbles-tree"
 )
@@ -31,9 +31,9 @@ func (m *message) setChildren(nodes ...tree.Node) {
 	}
 }
 
-func (m *message) Init() tea.Cmd {
+func (m *message) Init() (tea.Model, tea.Cmd) {
 	m.state = tree.NodeIsMultiLine
-	return nil
+	return m, nil
 }
 
 func (m *message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -94,6 +94,14 @@ var _ tree.Node = new(message)
 
 type quittingTree struct {
 	tree.Model
+}
+
+func (e *quittingTree) Init() (tea.Model, tea.Cmd) {
+	t, cmd := e.Model.Init()
+	if m, ok := t.(*tree.Model); ok {
+		e.Model = *m
+	}
+	return e, cmd
 }
 
 func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
