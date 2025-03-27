@@ -4,10 +4,10 @@ import (
 	"math"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/viewport"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss/v2"
 	"github.com/muesli/reflow/truncate"
 )
 
@@ -20,7 +20,7 @@ var (
 // New initializes a new Model
 // It sets the default keymap, styles and symbols.
 func New(t Nodes) Model {
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
 	return Model{
 		Model:   &vp,
 		KeyMap:  DefaultKeyMap(),
@@ -213,23 +213,23 @@ func (m *Model) ToggleExpand() {
 
 // SetWidth sets the width of the viewport of the tree.
 func (m *Model) SetWidth(w int) {
-	m.Model.Width = w
+	m.Model.SetWidth(w)
 }
 
 // SetHeight sets the height of the viewport of the tree.
 func (m *Model) SetHeight(h int) {
-	m.Model.Height = h
+	m.Model.SetHeight(h)
 	m.updateNodeVisibility(m.YOffset(), h)
 }
 
 // Height returns the viewport height of the tree.
 func (m *Model) Height() int {
-	return m.Model.Height
+	return m.Model.Height()
 }
 
 // Width returns the viewport width of the tree.
 func (m *Model) Width() int {
-	return m.Model.Width
+	return m.Model.Width()
 }
 
 // YOffset returns the viewport vertical scroll position of the tree.
@@ -245,11 +245,11 @@ func (m *Model) SetYOffset(n int) {
 
 // ScrollPercent returns the amount scrolled as a float between 0 and 1.
 func (m *Model) ScrollPercent() float64 {
-	if m.Model.Height >= len(m.tree.sequentialNodes()) {
+	if m.Model.Height() >= len(m.tree.sequentialNodes()) {
 		return 1.0
 	}
 	y := float64(m.Model.YOffset)
-	h := float64(m.Model.Height)
+	h := float64(m.Model.Height())
 	t := float64(len(m.tree.sequentialNodes()))
 	v := y / (t - h)
 	return math.Max(0.0, math.Min(1.0, v))
@@ -271,8 +271,8 @@ func (m *Model) SetCursor(pos int) tea.Cmd {
 	if cursor < m.Model.YOffset {
 		yOffset = cursor
 	}
-	if cursor > (m.Model.YOffset + (m.Model.Height - 1)) {
-		yOffset = cursor - m.Model.Height + 1
+	if cursor > (m.Model.YOffset + (m.Model.Height() - 1)) {
+		yOffset = cursor - m.Model.Height() + 1
 	}
 	if yOffset > -1 {
 		m.Model.SetYOffset(yOffset)
@@ -349,13 +349,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.LineDown):
 			cmd = m.MoveDown(1)
 		case key.Matches(msg, m.KeyMap.PageUp):
-			cmd = m.MoveUp(m.Model.Height)
+			cmd = m.MoveUp(m.Model.Height())
 		case key.Matches(msg, m.KeyMap.PageDown):
-			cmd = m.MoveDown(m.Model.Height)
+			cmd = m.MoveDown(m.Model.Height())
 		case key.Matches(msg, m.KeyMap.HalfPageUp):
-			cmd = m.MoveUp(m.Model.Height / 2)
+			cmd = m.MoveUp(m.Model.Height() / 2)
 		case key.Matches(msg, m.KeyMap.HalfPageDown):
-			cmd = m.MoveDown(m.Model.Height / 2)
+			cmd = m.MoveDown(m.Model.Height() / 2)
 		case key.Matches(msg, m.KeyMap.LineDown):
 			cmd = m.MoveDown(1)
 		case key.Matches(msg, m.KeyMap.GotoTop):
@@ -501,7 +501,7 @@ func (m *Model) renderPrefixForMultiLineNode(t Node, lineCount int) string {
 }
 
 func (m *Model) render() []string {
-	if m.Model.Height+m.Model.Width == 0 {
+	if m.Model.Height()+m.Model.Width() == 0 {
 		return nil
 	}
 
@@ -517,8 +517,8 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix := ""
 	name := ""
-	if !skipRender(t) {
-		name = t.View()
+	if nn, ok := t.(tea.ViewModel); ok && !skipRender(t) {
+		name = nn.View()
 	}
 
 	style := m.Styles.Line

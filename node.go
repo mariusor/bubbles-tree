@@ -1,6 +1,6 @@
 package tree
 
-import tea "github.com/charmbracelet/bubbletea"
+import tea "github.com/charmbracelet/bubbletea/v2"
 
 // NodeState is used for passing information from a Treeish element to the view itself
 type NodeState uint16

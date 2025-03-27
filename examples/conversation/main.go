@@ -3,13 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image/color"
 	"math/rand"
 	"os"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/viewport"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss/v2"
 	tree "github.com/mariusor/bubbles-tree"
 )
 
@@ -84,7 +85,7 @@ func treeNodes(pathNodes []*message) tree.Nodes {
 
 func (m *message) State() tree.NodeState {
 	state := m.state
-	if len(m.children) > 0 || m.Model.Height > 0 {
+	if len(m.children) > 0 || m.Model.Height() > 0 {
 		state |= tree.NodeCollapsible
 	}
 	return state
@@ -105,7 +106,7 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func buildMessage(parent tree.Node, depth, count int) message {
-	t := viewport.New(0, 0)
+	t := viewport.New()
 
 	m := message{Model: t, parent: parent, count: count, level: level(parent) + 1}
 	m.children = buildConversation(depth-1, &m)
@@ -118,7 +119,7 @@ func buildMessage(parent tree.Node, depth, count int) message {
 		title = bold.Render(fmt.Sprintf("Child node #%d-%d", m.level, m.count))
 	}
 	lipsum := lipgloss.JoinVertical(lipgloss.Top, title, "Sphinx of black quartz, judge my vow!\nThe quick brown fox jumps over the lazy dog.")
-	m.Model.Height = lipgloss.Height(lipsum) + 2
+	m.Model.SetHeight(lipgloss.Height(lipsum) + 2)
 	m.Model.SetContent(lipsum)
 	m.Model.Style = m.Model.Style.Foreground(lipgloss.Color("silver")).PaddingTop(1).PaddingBottom(1)
 
@@ -146,7 +147,7 @@ func buildConversation(depth int, parent tree.Node) []*message {
 
 type depthStyle struct {
 	lipgloss.Style
-	colors []lipgloss.TerminalColor
+	colors []color.Color
 }
 
 func (ds depthStyle) Width(w int) tree.DepthStyler {
@@ -171,7 +172,7 @@ func main() {
 
 	t.Styles.Symbol = depthStyle{
 		Style: lipgloss.NewStyle(),
-		colors: []lipgloss.TerminalColor{
+		colors: []color.Color{
 			lipgloss.Color("#ff0000"),
 			lipgloss.Color("#00ff00"),
 			lipgloss.Color("#0000ff"),
