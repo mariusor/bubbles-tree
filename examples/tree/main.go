@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/v2/key"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbletea/v2"
 	tree "github.com/mariusor/bubbles-tree"
 )
 
@@ -70,7 +70,7 @@ func (n *pathNode) State() tree.NodeState {
 	return n.state
 }
 
-func (n *pathNode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (n *pathNode) Update(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case tree.NodeState:
 		n.state = m
@@ -78,7 +78,7 @@ func (n *pathNode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		n.setChildren(m...)
 	}
 
-	return n, nil
+	return nil
 }
 
 func (n *pathNode) setChildren(nodes ...tree.Node) {

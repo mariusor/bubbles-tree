@@ -7,10 +7,10 @@ import (
 	"math/rand"
 	"os"
 
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/bubbles/v2/viewport"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	"charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	tree "github.com/mariusor/bubbles-tree"
 )
 
@@ -37,16 +37,17 @@ func (m *message) Init() tea.Cmd {
 	return nil
 }
 
-func (m *message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *message) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
-	m.Model, cmd = m.Model.Update(msg)
 	switch mm := msg.(type) {
 	case tree.NodeState:
 		m.state |= mm
 	case tree.Nodes:
 		m.setChildren(mm...)
+	default:
+		m.Model, cmd = m.Model.Update(msg)
 	}
-	return m, cmd
+	return cmd
 }
 
 func (m *message) View() string {
@@ -94,15 +95,14 @@ func (m *message) State() tree.NodeState {
 var _ tree.Node = new(message)
 
 type quittingTree struct {
-	tree.Model
+	*tree.Model
 }
 
-func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
+func (e quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := m.(tea.KeyMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
 		return e, tea.Quit
 	}
-	_, cmd := e.Model.Update(m)
-	return e, cmd
+	return e.Model.Update(m)
 }
 
 func buildMessage(parent tree.Node, depth, count int) message {
@@ -133,7 +133,7 @@ func buildConversation(depth int, parent tree.Node) []*message {
 	conv := make([]*message, 0)
 	maxMessages := 0
 	for {
-		if maxMessages = rand.Intn(10); maxMessages > 0 {
+		if maxMessages = rand.Intn(2); maxMessages > 0 {
 			break
 		}
 	}
@@ -181,10 +181,10 @@ func main() {
 			lipgloss.Color("#ffff00"),
 		},
 	}
-	m := quittingTree{Model: t}
+	m := quittingTree{Model: &t}
 
 	if _, err := tea.NewProgram(&m).Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 		os.Exit(1)
 	}
 }

@@ -4,10 +4,10 @@ import (
 	"math"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/bubbles/v2/viewport"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/viewport"
+	"charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/truncate"
 )
 
@@ -234,7 +234,7 @@ func (m *Model) Width() int {
 
 // YOffset returns the viewport vertical scroll position of the tree.
 func (m *Model) YOffset() int {
-	return m.Model.YOffset
+	return m.Model.YOffset()
 }
 
 // SetYOffset sets Y offset of the tree's viewport.
@@ -248,7 +248,7 @@ func (m *Model) ScrollPercent() float64 {
 	if m.Model.Height() >= len(m.tree.sequentialNodes()) {
 		return 1.0
 	}
-	y := float64(m.Model.YOffset)
+	y := float64(m.Model.YOffset())
 	h := float64(m.Model.Height())
 	t := float64(len(m.tree.sequentialNodes()))
 	v := y / (t - h)
@@ -268,10 +268,10 @@ func (m *Model) SetCursor(pos int) tea.Cmd {
 	}
 
 	yOffset := -1
-	if cursor < m.Model.YOffset {
+	if cursor < m.Model.YOffset() {
 		yOffset = cursor
 	}
-	if cursor > (m.Model.YOffset + (m.Model.Height() - 1)) {
+	if cursor > (m.Model.YOffset() + (m.Model.Height() - 1)) {
 		yOffset = cursor - m.Model.Height() + 1
 	}
 	if yOffset > -1 {
@@ -313,10 +313,10 @@ func (m *Model) updateNodeVisibility(start, height int) tea.Cmd {
 		st := nn.State()
 		if i >= start && i <= end {
 			if st.Is(nodeSkipRender) {
-				_, cmd = nn.Update(st ^ nodeSkipRender)
+				cmd = nn.Update(st ^ nodeSkipRender)
 			}
 		} else {
-			_, cmd = nn.Update(st | nodeSkipRender)
+			cmd = nn.Update(st | nodeSkipRender)
 		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -377,13 +377,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the pagination to a string.
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
 	if renderedRows := m.render(); len(renderedRows) > 0 {
 		m.Model.SetContent(
 			lipgloss.JoinVertical(lipgloss.Left, renderedRows...),
 		)
 	}
-	return m.Model.View()
+	return tea.NewView(m.Model.View())
 }
 
 // Focused returns the focus state of the tree.
@@ -517,9 +517,7 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix := ""
 	name := ""
-	if nn, ok := t.(tea.ViewModel); ok && !skipRender(t) {
-		name = nn.View()
-	}
+	name = t.View()
 
 	style := m.Styles.Line
 	if isSelected(t) {

@@ -1,13 +1,23 @@
 package tree
 
-import tea "github.com/charmbracelet/bubbletea/v2"
+import "charm.land/bubbletea/v2"
 
 // NodeState is used for passing information from a Treeish element to the view itself
 type NodeState uint16
 
 // Node represents the base model for the elements of the Treeish implementation
 type Node interface {
-	tea.Model
+	// Init is the first function that will be called. It returns an optional
+	// initial command. To not perform an initial command return nil.
+	Init() tea.Cmd
+
+	// Update is called when a message is received. Use it to inspect messages
+	// and, in response, update the model and/or send a command.
+	Update(tea.Msg) tea.Cmd
+
+	// View renders the program's UI, which can be a string or a [Layer]. The
+	// view is rendered after every Update.
+	View() string
 	// Parent should return the parent of the current node, or nil if a root node.
 	Parent() Node
 	// Children should return a list of Nodes which represent the children of the current node.
@@ -94,11 +104,7 @@ func (n Nodes) sequentialNodes() Nodes {
 func (n Nodes) Update(msg tea.Msg) tea.Cmd {
 	cmds := make([]tea.Cmd, 0)
 	for i, nn := range n {
-		ne, cmd := nn.Update(msg)
-		if nnn, ok := ne.(Node); ok {
-			nn = nnn
-		}
-		cmds = append(cmds, cmd)
+		cmds = append(cmds, nn.Update(msg))
 		if isCollapsible(nn) && isExpanded(nn) {
 			cmds = append(cmds, nn.Children().Update(msg))
 		}

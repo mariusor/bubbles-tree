@@ -6,9 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/v2/viewport"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"charm.land/bubbles/v2/viewport"
+	"charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type n struct {
@@ -51,14 +53,14 @@ func (n *n) State() NodeState {
 	return n.s
 }
 
-func (n *n) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (n *n) Update(msg tea.Msg) tea.Cmd {
 	if n == nil {
-		return nil, nil
+		return nil
 	}
 	if st, ok := msg.(NodeState); ok {
 		n.s = st
 	}
-	return n, nil
+	return nil
 }
 
 func p(p *n) func(*n) {
@@ -1027,11 +1029,42 @@ func TestModel_View(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := mockModel()
 			m.Model = &tt.viewport
-			if got := m.View(); got != tt.want {
-				t.Errorf("View() = %v, want %v", got, tt.want)
+			got := m.View()
+			screen := newMockScreen(tt.viewport.Width(), tt.viewport.Height())
+			got.Content.Draw(screen, screen.Bounds())
+			if gotString := screen.Buffer.String(); gotString != tt.want {
+				t.Errorf("View() = %s, want %s", gotString, tt.want)
 			}
 		})
 	}
+}
+
+type mockScreen struct {
+	*uv.Buffer
+	method ansi.Method
+}
+
+func newMockScreen(width, height int) *mockScreen {
+	return &mockScreen{
+		Buffer: uv.NewBuffer(width, height),
+		method: ansi.WcWidth,
+	}
+}
+
+func (m *mockScreen) Bounds() uv.Rectangle {
+	return m.Buffer.Bounds()
+}
+
+func (m *mockScreen) CellAt(x, y int) *uv.Cell {
+	return m.Buffer.CellAt(x, y)
+}
+
+func (m *mockScreen) SetCell(x, y int, c *uv.Cell) {
+	m.Buffer.SetCell(x, y, c)
+}
+
+func (m *mockScreen) WidthMethod() uv.WidthMethod {
+	return m.method
 }
 
 var treeOneRendered = `└─ tmp               
