@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"charm.land/bubbles/v2/viewport"
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
@@ -1030,9 +1030,7 @@ func TestModel_View(t *testing.T) {
 			m := mockModel()
 			m.Model = &tt.viewport
 			got := m.View()
-			screen := newMockScreen(tt.viewport.Width(), tt.viewport.Height())
-			got.Content.Draw(screen, screen.Bounds())
-			if gotString := screen.Buffer.String(); gotString != tt.want {
+			if gotString := got.Content; gotString != tt.want {
 				t.Errorf("View() = %s, want %s", gotString, tt.want)
 			}
 		})
