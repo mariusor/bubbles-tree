@@ -19,9 +19,9 @@ var (
 
 // New initializes a new Model
 // It sets the default keymap, styles and symbols.
-func New(t Nodes) Model {
+func New(t Nodes) *Model {
 	vp := viewport.New()
-	return Model{
+	return &Model{
 		Model:   &vp,
 		KeyMap:  DefaultKeyMap(),
 		Styles:  DefaultStyles(),
@@ -313,10 +313,14 @@ func (m *Model) updateNodeVisibility(start, height int) tea.Cmd {
 		st := nn.State()
 		if i >= start && i <= end {
 			if st.Is(nodeSkipRender) {
-				cmd = nn.Update(st ^ nodeSkipRender)
+				mn, cmdsr := nn.Update(st ^ nodeSkipRender)
+				nn, _ = mn.(Node)
+				cmd = cmdsr
 			}
 		} else {
-			cmd = nn.Update(st | nodeSkipRender)
+			mn, cmdsr := nn.Update(st | nodeSkipRender)
+			nn, _ = mn.(Node)
+			cmd = cmdsr
 		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -339,7 +343,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.SetWidth(msg.Width)
 		m.SetHeight(msg.Height)
-		cmd := m.tree.Update(msg)
+		cmd := m.tree.UpdateAll(msg)
 		return m, tea.Batch(cmd, m.setCurrentNode(m.cursor))
 	case tea.KeyMsg:
 		var cmd tea.Cmd
@@ -517,7 +521,7 @@ func (m *Model) renderNode(t Node) string {
 
 	prefix := ""
 	name := ""
-	name = t.View()
+	name = t.View().Content
 
 	style := m.Styles.Line
 	if isSelected(t) {
@@ -611,18 +615,4 @@ func isMultiLine(n Node) bool {
 
 func clamp(v, low, high int) int {
 	return min(high, max(low, v))
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

@@ -37,21 +37,23 @@ func (m *message) Init() tea.Cmd {
 	return nil
 }
 
-func (m *message) Update(msg tea.Msg) tea.Cmd {
+func (m *message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch mm := msg.(type) {
 	case tree.NodeState:
 		m.state |= mm
 	case tree.Nodes:
 		m.setChildren(mm...)
+	case tea.WindowSizeMsg:
+		m.Model.SetWidth(mm.Width - m.level)
 	default:
 		m.Model, cmd = m.Model.Update(msg)
 	}
-	return cmd
+	return m, cmd
 }
 
-func (m *message) View() string {
-	return m.Model.View()
+func (m *message) View() tea.View {
+	return tea.NewView(m.Model.View())
 }
 
 func (m *message) Parent() tree.Node {
@@ -98,14 +100,16 @@ type quittingTree struct {
 	*tree.Model
 }
 
-func (e quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
+func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := m.(tea.KeyMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
 		return e, tea.Quit
 	}
-	return e.Model.Update(m)
+	model, cmd := e.Model.Update(m)
+	e.Model, _ = model.(*tree.Model)
+	return e, cmd
 }
 
-func buildMessage(parent tree.Node, depth, count int) message {
+func buildMessage(parent tree.Node, depth, count int) *message {
 	t := viewport.New()
 
 	m := message{Model: t, parent: parent, count: count, level: level(parent) + 1}
@@ -120,10 +124,11 @@ func buildMessage(parent tree.Node, depth, count int) message {
 	}
 	lipsum := lipgloss.JoinVertical(lipgloss.Top, title, "Sphinx of black quartz, judge my vow!\nThe quick brown fox jumps over the lazy dog.")
 	m.Model.SetHeight(lipgloss.Height(lipsum) + 2)
+	m.Model.SetWidth(len(lipsum) + 2)
 	m.Model.SetContent(lipsum)
 	m.Model.Style = m.Model.Style.Foreground(lipgloss.Color("silver")).PaddingTop(1).PaddingBottom(1)
 
-	return m
+	return &m
 }
 
 func buildConversation(depth int, parent tree.Node) []*message {
@@ -140,7 +145,7 @@ func buildConversation(depth int, parent tree.Node) []*message {
 
 	for i := 0; i < maxMessages; i++ {
 		m := buildMessage(parent, depth, i)
-		conv = append(conv, &m)
+		conv = append(conv, m)
 	}
 	return conv
 }
@@ -181,7 +186,7 @@ func main() {
 			lipgloss.Color("#ffff00"),
 		},
 	}
-	m := quittingTree{Model: &t}
+	m := quittingTree{Model: t}
 
 	if _, err := tea.NewProgram(&m).Run(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%s\n", err.Error())

@@ -38,7 +38,7 @@ const (
 	Expanded  = "⊟"
 )
 
-func (n *pathNode) View() string {
+func (n *pathNode) View() tea.View {
 	name := filepath.Base(n.path)
 	if n.parent == nil {
 		name = n.path
@@ -54,12 +54,12 @@ func (n *pathNode) View() string {
 		}
 	}
 	if len(annotation) > 0 {
-		fmt.Fprintf(&s, "%-2s%s", annotation, name)
+		_, _ = fmt.Fprintf(&s, "%-2s%s", annotation, name)
 	} else {
-		fmt.Fprintf(&s, "%s", name)
+		_, _ = fmt.Fprintf(&s, "%s", name)
 	}
 
-	return s.String()
+	return tea.NewView(s.String())
 }
 
 func (n *pathNode) Children() tree.Nodes {
@@ -70,7 +70,7 @@ func (n *pathNode) State() tree.NodeState {
 	return n.state
 }
 
-func (n *pathNode) Update(msg tea.Msg) tea.Cmd {
+func (n *pathNode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case tree.NodeState:
 		n.state = m
@@ -78,7 +78,7 @@ func (n *pathNode) Update(msg tea.Msg) tea.Cmd {
 		n.setChildren(m...)
 	}
 
-	return nil
+	return n, nil
 }
 
 func (n *pathNode) setChildren(nodes ...tree.Node) {
@@ -165,7 +165,7 @@ func findNodeByPath(nodes []*pathNode, path string) *pathNode {
 }
 
 type quittingTree struct {
-	tree.Model
+	*tree.Model
 }
 
 func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
@@ -174,7 +174,7 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	mod, cmd := e.Model.Update(m)
 	if mm, ok := mod.(*tree.Model); ok {
-		e.Model = *mm
+		e.Model = mm
 	}
 	return e, cmd
 }
@@ -200,14 +200,14 @@ func main() {
 		symbols = tree.ThickEdgeSymbols()
 	case "", "normal":
 	default:
-		fmt.Fprintf(os.Stderr, "invalid style type, using default 'normal'\n")
+		_, _ = fmt.Fprintf(os.Stderr, "invalid style type, using default 'normal'\n")
 	}
 
 	path := RootPath
 	if flag.NArg() > 0 {
 		abs, err := filepath.Abs(flag.Arg(0))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+			_, _ = fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 			os.Exit(1)
 		}
 		path = abs
@@ -218,7 +218,7 @@ func main() {
 	m := quittingTree{Model: t}
 
 	if _, err := tea.NewProgram(&m).Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		_, _ = fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 		os.Exit(1)
 	}
 }

@@ -13,11 +13,11 @@ type Node interface {
 
 	// Update is called when a message is received. Use it to inspect messages
 	// and, in response, update the model and/or send a command.
-	Update(tea.Msg) tea.Cmd
+	Update(tea.Msg) (tea.Model, tea.Cmd)
 
 	// View renders the program's UI, which can be a string or a [Layer]. The
 	// view is rendered after every Update.
-	View() string
+	View() tea.View
 	// Parent should return the parent of the current node, or nil if a root node.
 	Parent() Node
 	// Children should return a list of Nodes which represent the children of the current node.
@@ -101,12 +101,14 @@ func (n Nodes) sequentialNodes() Nodes {
 	return seq
 }
 
-func (n Nodes) Update(msg tea.Msg) tea.Cmd {
+func (n Nodes) UpdateAll(msg tea.Msg) tea.Cmd {
 	cmds := make([]tea.Cmd, 0)
 	for i, nn := range n {
-		cmds = append(cmds, nn.Update(msg))
+		mn, cmd := nn.Update(msg)
+		nn, _ = mn.(Node)
+		cmds = append(cmds, cmd)
 		if isCollapsible(nn) && isExpanded(nn) {
-			cmds = append(cmds, nn.Children().Update(msg))
+			cmds = append(cmds, nn.Children().UpdateAll(msg))
 		}
 		n[i] = nn
 	}
