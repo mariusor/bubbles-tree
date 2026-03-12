@@ -8,16 +8,17 @@ import (
 	"os"
 
 	"charm.land/bubbles/v2/key"
-	"charm.land/bubbles/v2/viewport"
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	tree "github.com/mariusor/bubbles-tree"
 )
 
 type message struct {
-	viewport.Model
 	count    int
 	level    int
+	w        int
+	h        int
+	c        string
 	state    tree.NodeState
 	parent   tree.Node
 	children []*message
@@ -45,15 +46,14 @@ func (m *message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tree.Nodes:
 		m.setChildren(mm...)
 	case tea.WindowSizeMsg:
-		m.Model.SetWidth(mm.Width - m.level)
-	default:
-		m.Model, cmd = m.Model.Update(msg)
+		m.w = mm.Width - m.level
 	}
 	return m, cmd
 }
 
 func (m *message) View() tea.View {
-	return tea.NewView(m.Model.View())
+
+	return tea.NewView(lipgloss.NewStyle().Foreground(lipgloss.Color("silver")).PaddingTop(1).PaddingBottom(1).Render(m.c))
 }
 
 func (m *message) Parent() tree.Node {
@@ -88,7 +88,7 @@ func treeNodes(pathNodes []*message) tree.Nodes {
 
 func (m *message) State() tree.NodeState {
 	state := m.state
-	if len(m.children) > 0 || m.Model.Height() > 0 {
+	if len(m.children) > 0 || m.h > 0 {
 		state |= tree.NodeCollapsible
 	}
 	return state
@@ -101,7 +101,7 @@ type quittingTree struct {
 }
 
 func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := m.(tea.KeyMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
+	if msg, ok := m.(tea.KeyPressMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
 		return e, tea.Quit
 	}
 	model, cmd := e.Model.Update(m)
@@ -110,9 +110,7 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func buildMessage(parent tree.Node, depth, count int) *message {
-	t := viewport.New()
-
-	m := message{Model: t, parent: parent, count: count, level: level(parent) + 1}
+	m := message{parent: parent, count: count, level: level(parent) + 1}
 	m.children = buildConversation(depth-1, &m)
 
 	bold := lipgloss.NewStyle().Bold(true)
@@ -122,11 +120,9 @@ func buildMessage(parent tree.Node, depth, count int) *message {
 	} else {
 		title = bold.Render(fmt.Sprintf("Child node #%d-%d", m.level, m.count))
 	}
-	lipsum := lipgloss.JoinVertical(lipgloss.Top, title, "Sphinx of black quartz, judge my vow!\nThe quick brown fox jumps over the lazy dog.")
-	m.Model.SetHeight(lipgloss.Height(lipsum) + 2)
-	m.Model.SetWidth(len(lipsum) + 2)
-	m.Model.SetContent(lipsum)
-	m.Model.Style = m.Model.Style.Foreground(lipgloss.Color("silver")).PaddingTop(1).PaddingBottom(1)
+	lipsum := lipgloss.JoinVertical(lipgloss.Top, title, "Sphinx of black quartz, judge my vow!", "The quick brown fox jumps over the lazy dog.")
+	m.h = lipgloss.Height(lipsum) + 2
+	m.c = lipsum
 
 	return &m
 }

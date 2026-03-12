@@ -6,7 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/viewport"
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/truncate"
 )
@@ -336,48 +336,43 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var err error
+	var cmd tea.Cmd
 
-	switch msg := msg.(type) {
-	case Msg:
-		return m, m.setCurrentNode(m.cursor)
+	switch mm := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.SetWidth(msg.Width)
-		m.SetHeight(msg.Height)
-		cmd := m.tree.UpdateAll(msg)
-		return m, tea.Batch(cmd, m.setCurrentNode(m.cursor))
-	case tea.KeyMsg:
-		var cmd tea.Cmd
+		m.SetWidth(mm.Width)
+		m.SetHeight(mm.Height)
+		cmd = m.tree.UpdateAll(mm)
+	case tea.KeyPressMsg:
 		switch {
-		case key.Matches(msg, m.KeyMap.LineUp):
+		case key.Matches(mm, m.KeyMap.LineUp):
 			cmd = m.MoveUp(1)
-		case key.Matches(msg, m.KeyMap.LineDown):
+		case key.Matches(mm, m.KeyMap.LineDown):
 			cmd = m.MoveDown(1)
-		case key.Matches(msg, m.KeyMap.PageUp):
+		case key.Matches(mm, m.KeyMap.PageUp):
 			cmd = m.MoveUp(m.Model.Height())
-		case key.Matches(msg, m.KeyMap.PageDown):
+		case key.Matches(mm, m.KeyMap.PageDown):
 			cmd = m.MoveDown(m.Model.Height())
-		case key.Matches(msg, m.KeyMap.HalfPageUp):
+		case key.Matches(mm, m.KeyMap.HalfPageUp):
 			cmd = m.MoveUp(m.Model.Height() / 2)
-		case key.Matches(msg, m.KeyMap.HalfPageDown):
+		case key.Matches(mm, m.KeyMap.HalfPageDown):
 			cmd = m.MoveDown(m.Model.Height() / 2)
-		case key.Matches(msg, m.KeyMap.LineDown):
+		case key.Matches(mm, m.KeyMap.LineDown):
 			cmd = m.MoveDown(1)
-		case key.Matches(msg, m.KeyMap.GotoTop):
+		case key.Matches(mm, m.KeyMap.GotoTop):
 			cmd = m.GotoTop()
-		case key.Matches(msg, m.KeyMap.GotoBottom):
+		case key.Matches(mm, m.KeyMap.GotoBottom):
 			cmd = m.GotoBottom()
-		case key.Matches(msg, m.KeyMap.Expand):
+		case key.Matches(mm, m.KeyMap.Expand):
 			m.ToggleExpand()
 		}
-
-		return m, tea.Batch(cmd, m.updateNodeVisibility(m.YOffset(), m.Height()))
 	}
 
 	if err != nil {
 		// TODO(marius): add a way to flash the model here?
 		return m, erred(err)
 	}
-	return m, nil
+	return m, tea.Batch(cmd, m.updateNodeVisibility(m.YOffset(), m.Height()))
 }
 
 // View renders the pagination to a string.

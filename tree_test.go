@@ -6,11 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 type n struct {
@@ -29,11 +32,11 @@ func (n *n) Parent() Node {
 func (n *n) Init() tea.Cmd {
 	return nil
 }
-func (n *n) View() string {
+func (n *n) View() tea.View {
 	if n == nil {
-		return ""
+		return tea.NewView("")
 	}
-	return n.n
+	return tea.NewView(n.n)
 }
 func (n *n) Children() Nodes {
 	if n == nil {
@@ -53,14 +56,14 @@ func (n *n) State() NodeState {
 	return n.s
 }
 
-func (n *n) Update(msg tea.Msg) tea.Cmd {
+func (n *n) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if n == nil {
-		return nil
+		return n, nil
 	}
 	if st, ok := msg.(NodeState); ok {
 		n.s = st
 	}
-	return nil
+	return n, nil
 }
 
 func p(p *n) func(*n) {
@@ -835,7 +838,7 @@ func TestNodes_len(t *testing.T) {
 	}
 }
 
-func mockModel(nn ...*n) Model {
+func mockModel(nn ...*n) *Model {
 	vp := viewport.New()
 	m := Model{
 		Model:   &vp,
@@ -845,42 +848,39 @@ func mockModel(nn ...*n) Model {
 		Symbols: DefaultSymbols(),
 	}
 	if len(nn) == 0 {
-		return m
+		return &m
 	}
 	m.tree = make(Nodes, len(nn))
 	for i, n := range nn {
 		m.tree[i] = n
 	}
-	return m
+	return &m
 }
 
 func TestNew(t *testing.T) {
-	type args struct {
-		t Nodes
-	}
 	tests := []struct {
 		name string
-		args args
-		want Model
+		t    Nodes
+		want *Model
 	}{
 		{
 			name: "no nodes",
-			args: args{},
 			want: mockModel(),
 		},
 		{
 			name: "single node",
-			args: args{Nodes{tn("test")}},
+			t:    Nodes{tn("test")},
 			want: mockModel(tn("test")),
 		},
 	}
+	ignoreUnexported := cmpopts.IgnoreUnexported(Style{}, Model{}, key.Binding{}, lipgloss.Style{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := New(tt.args.t)
+			got := New(tt.t)
 			got.Model = nil
 			tt.want.Model = nil
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("New() = %v, want %v", got, tt.want)
+			if !cmp.Equal(got, tt.want, ignoreUnexported) {
+				t.Errorf("New() = %s", cmp.Diff(tt.want, got, ignoreUnexported))
 			}
 		})
 	}

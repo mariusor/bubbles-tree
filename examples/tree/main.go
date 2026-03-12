@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/key"
-	"charm.land/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 	tree "github.com/mariusor/bubbles-tree"
 )
 
@@ -169,7 +169,7 @@ type quittingTree struct {
 }
 
 func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := m.(tea.KeyMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
+	if msg, ok := m.(tea.KeyPressMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
 		return e, tea.Quit
 	}
 	mod, cmd := e.Model.Update(m)
