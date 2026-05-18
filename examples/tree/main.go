@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -13,7 +14,7 @@ import (
 	tree "github.com/mariusor/bubbles-tree"
 )
 
-const RootPath = "/tmp"
+const RootPath = "../../"
 
 type pathNode struct {
 	parent   *pathNode
@@ -31,6 +32,20 @@ func (n *pathNode) Parent() tree.Node {
 
 func (n *pathNode) Init() tea.Cmd {
 	return nil
+}
+
+func (n *pathNode) Path() string {
+	pieces := make([]string, 0)
+	parent := n
+	for {
+		if parent == nil {
+			break
+		}
+		pieces = append(pieces, parent.path)
+		parent = parent.parent
+	}
+	slices.Reverse(pieces)
+	return filepath.Join(pieces...)
 }
 
 const (
@@ -74,19 +89,16 @@ func (n *pathNode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case tree.NodeState:
 		n.state = m
-	case tree.Nodes:
-		n.setChildren(m...)
 	}
 
 	return n, nil
 }
 
-func (n *pathNode) setChildren(nodes ...tree.Node) {
+func (n *pathNode) setChildren(nodes ...*pathNode) {
 	n.children = n.children[:0]
 	for _, nn := range nodes {
-		if c, ok := nn.(*pathNode); ok {
-			n.children = append(n.children, c)
-		}
+		nn.parent = n
+		n.children = append(n.children, nn)
 	}
 }
 
@@ -94,9 +106,10 @@ func isUnixHiddenFile(name string) bool {
 	return len(name) > 2 && (name[0] == '.' || name[:2] == "..")
 }
 
-func buildNodeTree(root string, maxDepth int) tree.Nodes {
-	allNodes := make([]*pathNode, 0)
+func buildPathNodes(root string) []*pathNode {
+	root = filepath.Clean(root)
 
+	allNodes := make([]*pathNode, 0)
 	rootPath := func(p string) string {
 		if p == "." {
 			return root
@@ -115,7 +128,7 @@ func buildNodeTree(root string, maxDepth int) tree.Nodes {
 		}
 
 		cnt := len(strings.Split(p, string(os.PathSeparator)))
-		if maxDepth != -1 && cnt > maxDepth {
+		if cnt > 1 {
 			return fs.SkipDir
 		}
 
@@ -141,7 +154,7 @@ func buildNodeTree(root string, maxDepth int) tree.Nodes {
 		return nil
 	})
 
-	return treeNodes(allNodes)
+	return allNodes
 }
 
 func treeNodes(pathNodes []*pathNode) tree.Nodes {
@@ -169,8 +182,18 @@ type quittingTree struct {
 }
 
 func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := m.(tea.KeyPressMsg); ok && key.Matches(msg, key.NewBinding(key.WithKeys("q"))) {
-		return e, tea.Quit
+	switch msg := m.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, key.NewBinding(key.WithKeys("q"))):
+			return e, tea.Quit
+		}
+	case *pathNode:
+		it := buildPathNodes(msg.Path())
+		if len(it) > 0 {
+			msg.setChildren(it[0].children...)
+			return e, nil
+		}
 	}
 	mod, cmd := e.Model.Update(m)
 	if mm, ok := mod.(*tree.Model); ok {
@@ -180,9 +203,7 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func main() {
-	var depth int
 	var style string
-	flag.IntVar(&depth, "depth", 2, "The maximum depth to read the directory structure")
 	flag.StringVar(&style, "style", "normal", "The style to use when drawing the tree: double, thick, rounded, edge, normal")
 	flag.Parse()
 
@@ -213,7 +234,7 @@ func main() {
 		path = abs
 	}
 
-	t := tree.New(buildNodeTree(path, depth))
+	t := tree.New(treeNodes(buildPathNodes(path)))
 	t.Symbols = symbols
 	m := quittingTree{Model: t}
 
