@@ -350,9 +350,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(mm, m.KeyMap.LineDown):
 			cmd = m.MoveDown(1)
 		case key.Matches(mm, m.KeyMap.PageUp):
-			cmd = m.MoveUp(m.Model.Height())
+			cmd = m.MoveUp(m.Model.Height() - 1)
 		case key.Matches(mm, m.KeyMap.PageDown):
-			cmd = m.MoveDown(m.Model.Height())
+			cmd = m.MoveDown(m.Model.Height() - 1)
 		case key.Matches(mm, m.KeyMap.HalfPageUp):
 			cmd = m.MoveUp(m.Model.Height() / 2)
 		case key.Matches(mm, m.KeyMap.HalfPageDown):
