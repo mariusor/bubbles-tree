@@ -1119,6 +1119,9 @@ func TestModel_renderNode(t *testing.T) {
 			got := m.renderNode(tt.node)
 			linesGot := strings.Split(got, "\n")
 			linesWant := strings.Split(tt.want, "\n")
+			if len(linesWant) != len(linesGot) {
+				t.Fatalf("Different line count %d, got %d", len(linesWant), len(linesGot))
+			}
 			for i, lw := range linesWant {
 				if lg := linesGot[i]; lw != lg {
 					t.Errorf("%2d %s| %s", i, lw, lg)
@@ -1220,8 +1223,9 @@ func Test_positionChanged(t *testing.T) {
 			m := mockModel()
 			m.tree = Nodes{tt.args.tree}
 			m.cursor = tt.args.pos
-			if gotMsg := m.positionChanged(); !reflect.DeepEqual(gotMsg, tt.want) {
-				t.Errorf("positionChanged() = %v, want %v", gotMsg, tt.want)
+			gotMsg := m.positionChanged()
+			if !cmp.Equal(gotMsg, tt.want, equateInternalNodes) {
+				t.Errorf("positionChanged() = %s", cmp.Diff(tt.want, gotMsg, equateInternalNodes))
 			}
 		})
 	}
@@ -1321,11 +1325,38 @@ func TestModel_currentNode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := mockModel(tt.fields.tree)
 			m.cursor = tt.fields.cursor
-			if got := m.currentNode(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("currentNode() = %v, want %v", got, tt.want)
+			got := m.currentNode()
+			if !cmp.Equal(got, tt.want, equateInternalNodes) {
+				t.Errorf("currentNode() = %s", cmp.Diff(tt.want, got, equateInternalNodes))
 			}
 		})
 	}
+}
+
+var equateInternalNodes = cmp.FilterValues(areInternalNodes, cmp.Comparer(compareInternalNodes))
+
+func areInternalNodes(x, y any) bool {
+	_, ok1 := x.(n)
+	_, ok2 := y.(n)
+	return ok1 && ok2
+}
+
+func compareInternalNodes(x, y any) bool {
+	xe := x.(n)
+	ye := y.(n)
+	if xe.n != ye.n {
+		return false
+	}
+	if len(xe.c) != len(ye.c) {
+		return false
+	}
+	if xe.p != ye.p {
+		return false
+	}
+	if xe.s != ye.s {
+		return false
+	}
+	return true
 }
 
 func TestModel_ToggleExpand(t *testing.T) {

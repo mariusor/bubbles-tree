@@ -52,7 +52,6 @@ func (m *message) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *message) View() tea.View {
-
 	return tea.NewView(lipgloss.NewStyle().Foreground(lipgloss.Color("silver")).PaddingTop(1).PaddingBottom(1).Render(m.c))
 }
 

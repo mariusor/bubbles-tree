@@ -32,12 +32,8 @@ type Nodes []Node
 const (
 	NodeNone NodeState = 0
 
-	// NodeCollapsed hints that the current node is collapsed
-	NodeCollapsed NodeState = 1 << iota
 	// NodeSelected hints that the current node should be rendered as selected
-	NodeSelected
-	// NodeCollapsible hints that the current node can be collapsed
-	NodeCollapsible
+	NodeSelected NodeState = 1 << iota
 	// NodeHidden hints that the current node is not going to be displayed
 	NodeHidden
 	// NodeLastChild shows the node to be the last in the children list
@@ -46,6 +42,11 @@ const (
 	nodeHasPreviousSibling
 	// NodeIsMultiLine shows if the node should not be truncated to the viewport's max width
 	NodeIsMultiLine
+	// NodeCollapsed hints that the current node is collapsed.
+	// The default is expanded so calling code must collapse them explicitly if desired.
+	NodeCollapsed
+	// NodeCollapsible hints that the current node can be collapsed
+	NodeCollapsible
 	// nodeSkipRender shows if the node will not be rendered
 	// NOTE(marius): this might overlap with NodeHidden
 	nodeSkipRender

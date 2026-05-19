@@ -153,6 +153,10 @@ func (m *Model) currentNode() Node {
 	return m.tree.at(m.cursor)
 }
 
+func (m *Model) CurrentNode() Node {
+	return m.currentNode()
+}
+
 // Model is the Bubble Tea model for this user interface.
 type Model struct {
 	*viewport.Model
@@ -199,16 +203,27 @@ func (m *Model) GotoBottom() tea.Cmd {
 	return m.SetCursor(m.tree.len() - 1)
 }
 
+type ExpandedMsg struct {
+	Node
+}
+
+func expanded(n Node) tea.Cmd {
+	return func() tea.Msg {
+		return ExpandedMsg{Node: n}
+	}
+}
+
 // ToggleExpand toggles the expanded state of the node pointed at by m.cursor
-func (m *Model) ToggleExpand() {
+func (m *Model) ToggleExpand() tea.Cmd {
 	n := m.currentNode()
 	if n == nil {
-		return
+		return noop
 	}
 	if !isCollapsible(n) {
-		return
+		return noop
 	}
 	n.Update(n.State() ^ NodeCollapsed)
+	return expanded(n)
 }
 
 // SetWidth sets the width of the viewport of the tree.
@@ -364,7 +379,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(mm, m.KeyMap.GotoBottom):
 			cmd = m.GotoBottom()
 		case key.Matches(mm, m.KeyMap.Expand):
-			m.ToggleExpand()
+			cmd = m.ToggleExpand()
 		}
 	}
 

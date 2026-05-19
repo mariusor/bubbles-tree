@@ -188,11 +188,13 @@ func (e *quittingTree) Update(m tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("q"))):
 			return e, tea.Quit
 		}
-	case *pathNode:
-		it := buildPathNodes(msg.Path())
-		if len(it) > 0 {
-			msg.setChildren(it[0].children...)
-			return e, nil
+	case tree.ExpandedMsg:
+		if n, ok := msg.Node.(*pathNode); ok {
+			it := buildPathNodes(n.Path())
+			if len(it) > 0 {
+				n.setChildren(it[0].children...)
+				return e, nil
+			}
 		}
 	}
 	mod, cmd := e.Model.Update(m)

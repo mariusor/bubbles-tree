@@ -1,6 +1,10 @@
 package tree
 
-import "unicode/utf8"
+import (
+	"unicode/utf8"
+
+	"charm.land/lipgloss/v2"
+)
 
 type Symbols struct {
 	Connector  string
@@ -44,28 +48,32 @@ func DefaultSymbols() Symbols {
 }
 
 var (
+	normalBorder  = lipgloss.NormalBorder()
 	normalSymbols = Symbols{
-		Starter:    "├─",
-		Connector:  "│ ",
-		Terminator: "└─",
+		Starter:    normalBorder.MiddleLeft + normalBorder.Bottom,
+		Connector:  normalBorder.Left + " ",
+		Terminator: normalBorder.BottomLeft + normalBorder.Bottom,
 	}
 
+	roundedBorder  = lipgloss.RoundedBorder()
 	roundedSymbols = Symbols{
-		Starter:    "├─",
-		Connector:  "│ ",
-		Terminator: "╰─",
+		Starter:    roundedBorder.MiddleLeft + roundedBorder.Bottom,
+		Connector:  roundedBorder.Left + " ",
+		Terminator: roundedBorder.BottomLeft + roundedBorder.Bottom,
 	}
 
+	thickBorder  = lipgloss.ThickBorder()
 	thickSymbols = Symbols{
-		Starter:    "┣━",
-		Connector:  "┃ ",
-		Terminator: "┗━",
+		Starter:    thickBorder.MiddleLeft + thickBorder.Bottom,
+		Connector:  thickBorder.Left + " ",
+		Terminator: thickBorder.BottomLeft + thickBorder.Bottom,
 	}
 
+	doubleBorder  = lipgloss.DoubleBorder()
 	doubleSymbols = Symbols{
-		Starter:    "╠═",
-		Connector:  "║",
-		Terminator: "╚═",
+		Starter:    doubleBorder.MiddleLeft + doubleBorder.Bottom,
+		Connector:  doubleBorder.Left + " ",
+		Terminator: doubleBorder.BottomLeft + doubleBorder.Bottom,
 	}
 
 	normalEdgeSymbols = Symbols{
