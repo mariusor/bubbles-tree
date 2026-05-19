@@ -312,7 +312,7 @@ func (m *Model) init() tea.Msg {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return m.init
+	return tea.Batch(m.init, m.setCurrentNode(0))
 }
 
 func (m *Model) updateNodeVisibility(start, height int) tea.Cmd {

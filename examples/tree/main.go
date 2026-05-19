@@ -103,7 +103,7 @@ func (n *pathNode) setChildren(nodes ...*pathNode) {
 }
 
 func isUnixHiddenFile(name string) bool {
-	return len(name) > 2 && (name[0] == '.' || name[:2] == "..")
+	return len(name) > 2 && name[0] == '.'
 }
 
 func buildPathNodes(root string) []*pathNode {
